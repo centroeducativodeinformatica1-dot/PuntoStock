@@ -120,10 +120,20 @@ const Stock = {
           </td>
           <td class="td-mono td-muted">${p.codigo || p.codigoBarra || '—'}</td>
           <td><span class="badge badge-muted">${p.categoria || 'Sin cat.'}</span></td>
-          <td class="td-mono td-green">${formatPrice(p.precio)}</td>
+          <td class="td-mono td-green">${formatPrice(p.precio)}${p.unidad === 'kg' || p.unidad === 'g' ? '/kg' : ''}</td>
           <td class="td-mono td-muted">${p.precioCosto ? formatPrice(p.precioCosto) : '—'}</td>
-          <td class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</td>
-          <td><span class="badge ${stockBadge}">${stockLabel}</span></td>
+          <td>
+            ${p.unidad === 'kg' || p.unidad === 'g'
+              ? '<span class="badge badge-blue" style="font-size:10px;">Por peso / kg</span>'
+              : `<span class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</span>`
+            }
+          </td>
+          <td>
+            ${p.unidad === 'kg' || p.unidad === 'g'
+              ? '<span class="badge badge-green">Con balanza</span>'
+              : `<span class="badge ${stockBadge}">${stockLabel}</span>`
+            }
+          </td>
           <td>
             <div style="display:flex; gap:6px;">
               <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})">
@@ -161,6 +171,7 @@ const Stock = {
   openModal(id) {
     const prod = id ? this.productos.find(p => p.id === id) : null;
     const cats = [...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
+    const esPeso = prod?.unidad === 'kg' || prod?.unidad === 'g';
 
     openModal(`
       <div class="modal-header">
@@ -168,58 +179,106 @@ const Stock = {
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
 
+      <!-- Selector de unidad primero, para que el usuario elija antes de ver los campos -->
+      <div class="form-group" style="margin-bottom:20px;">
+        <label>Tipo de producto</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
+          <label id="tipo-unidad-label" onclick="Stock.setTipo('unidad')"
+            style="display:flex; align-items:center; gap:10px; padding:12px 14px;
+                   border:2px solid ${!esPeso ? 'var(--green-primary)' : 'var(--border)'};
+                   border-radius:var(--radius-md); cursor:pointer; transition:all 0.2s;
+                   background:${!esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
+            <input type="radio" name="prod-tipo" value="unidad" ${!esPeso ? 'checked' : ''}
+              style="accent-color:var(--green-primary); width:16px; height:16px;">
+            <div>
+              <div style="font-weight:700; font-size:13px; color:${!esPeso ? 'var(--green-primary)' : 'var(--text-primary)'};">Por unidad</div>
+              <div style="font-size:11px; color:var(--text-secondary);">Ropa, calzado, electro...</div>
+            </div>
+          </label>
+          <label id="tipo-peso-label" onclick="Stock.setTipo('kg')"
+            style="display:flex; align-items:center; gap:10px; padding:12px 14px;
+                   border:2px solid ${esPeso ? 'var(--green-primary)' : 'var(--border)'};
+                   border-radius:var(--radius-md); cursor:pointer; transition:all 0.2s;
+                   background:${esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
+            <input type="radio" name="prod-tipo" value="kg" ${esPeso ? 'checked' : ''}
+              style="accent-color:var(--green-primary); width:16px; height:16px;">
+            <div>
+              <div style="font-weight:700; font-size:13px; color:${esPeso ? 'var(--green-primary)' : 'var(--text-primary)'};">Por peso / balanza</div>
+              <div style="font-size:11px; color:var(--text-secondary);">Fiambres, quesos, carnes — precio por kg, venta en gramos</div>
+            </div>
+          </label>
+        </div>
+        <!-- Aviso visible cuando es por peso -->
+        <div id="peso-aviso" style="display:${esPeso ? 'flex' : 'none'}; align-items:center; gap:8px;
+             margin-top:10px; padding:10px 12px; background:rgba(126,211,33,0.08);
+             border:1px solid var(--border-green); border-radius:var(--radius-md); font-size:12px; color:var(--green-primary);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Al vender este producto se abrirá la calculadora de balanza automáticamente. El precio es por kilogramo.
+        </div>
+      </div>
+
+      <input type="hidden" id="prod-unidad" value="${prod?.unidad || 'unidad'}">
+
       <div class="grid-2">
         <div class="form-group" style="grid-column:1/-1;">
           <label>Nombre del producto *</label>
-          <input type="text" id="prod-nombre" value="${prod?.nombre || ''}" placeholder="">
+          <input type="text" id="prod-nombre" value="${prod?.nombre || ''}">
         </div>
         <div class="form-group">
           <label>Código / SKU</label>
-          <input type="text" id="prod-codigo" value="${prod?.codigo || ''}" placeholder="">
+          <input type="text" id="prod-codigo" value="${prod?.codigo || ''}">
         </div>
         <div class="form-group">
           <label>Código de barras</label>
-          <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}" placeholder="">
+          <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}">
         </div>
         <div class="form-group">
-          <label>Precio de venta *</label>
-          <input type="number" id="prod-precio" value="${prod?.precio || ''}" placeholder="" min="0" step="0.01">
+          <label id="label-precio">Precio de venta${esPeso ? ' por kg *' : ' *'}</label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
+            <input type="number" id="prod-precio" value="${prod?.precio || ''}" min="0" step="0.01"
+              style="padding-left:26px;">
+          </div>
+          <div id="precio-hint" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:${esPeso ? 'block' : 'none'};">
+            Precio por kilogramo. Ej: Jamón a $8.000/kg → ingresás 8000. Al vender se cobra por los gramos que pese.
+          </div>
         </div>
         <div class="form-group">
           <label>Precio de costo</label>
-          <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" placeholder="" min="0" step="0.01">
+          <div style="position:relative;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
+            <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" min="0" step="0.01"
+              style="padding-left:26px;">
+          </div>
         </div>
-        <div class="form-group">
+
+        <!-- Stock: ocultar para productos por peso -->
+        <div class="form-group" id="stock-field" style="display:${esPeso ? 'none' : 'block'};">
           <label>Stock actual</label>
-          <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" placeholder="" min="0">
+          <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0">
         </div>
+
         <div class="form-group">
           <label>Categoría</label>
-          <input type="text" id="prod-cat" value="${prod?.categoria || ''}" placeholder=""
-            list="cats-datalist">
+          <input type="text" id="prod-cat" value="${prod?.categoria || ''}" list="cats-datalist">
           <datalist id="cats-datalist">
             ${cats.map(c => `<option value="${c}">`).join('')}
           </datalist>
         </div>
-        <div class="form-group">
-          <label>Unidad de venta</label>
-          <select id="prod-unidad">
-            <option value="unidad" ${prod?.unidad === 'unidad' || !prod?.unidad ? 'selected' : ''}>Unidad (cantidad entera)</option>
-            <option value="kg"     ${prod?.unidad === 'kg' ? 'selected' : ''}>Kilogramo (precio por kg · balanza)</option>
-            <option value="g"      ${prod?.unidad === 'g'  ? 'selected' : ''}>Gramo (precio por kg · balanza)</option>
-          </select>
-          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">
-            Si elegís kg o g, al vender se abrirá la calculadora de balanza automáticamente.
-          </div>
-        </div>
+
         <div class="form-group" style="grid-column:1/-1;">
           <label>Descripción</label>
-          <input type="text" id="prod-desc" value="${prod?.descripcion || ''}" placeholder="">
+          <input type="text" id="prod-desc" value="${prod?.descripcion || ''}">
         </div>
       </div>
 
       <div class="form-group">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
+                       font-size:13px; text-transform:none; letter-spacing:0;">
           <label class="toggle">
             <input type="checkbox" id="prod-activo" ${prod?.activo !== false ? 'checked' : ''}>
             <span class="toggle-slider"></span>
@@ -235,6 +294,45 @@ const Stock = {
         </button>
       </div>
     `);
+  },
+
+  // Cambiar tipo (unidad/kg) dinámicamente en el modal
+  setTipo(tipo) {
+    const esPeso = tipo === 'kg' || tipo === 'g';
+
+    // Actualizar hidden input
+    const unidadInput = document.getElementById('prod-unidad');
+    if (unidadInput) unidadInput.value = tipo;
+
+    // Actualizar radio visualmente
+    document.querySelectorAll('input[name="prod-tipo"]').forEach(r => {
+      r.checked = r.value === tipo;
+    });
+
+    // Actualizar estilos de las tarjetas
+    const lblUnidad = document.getElementById('tipo-unidad-label');
+    const lblPeso   = document.getElementById('tipo-peso-label');
+    if (lblUnidad) {
+      lblUnidad.style.borderColor = !esPeso ? 'var(--green-primary)' : 'var(--border)';
+      lblUnidad.style.background  = !esPeso ? 'var(--green-muted)' : 'var(--bg-card)';
+      lblUnidad.querySelector('div div:first-child').style.color = !esPeso ? 'var(--green-primary)' : 'var(--text-primary)';
+    }
+    if (lblPeso) {
+      lblPeso.style.borderColor = esPeso ? 'var(--green-primary)' : 'var(--border)';
+      lblPeso.style.background  = esPeso ? 'var(--green-muted)' : 'var(--bg-card)';
+      lblPeso.querySelector('div div:first-child').style.color = esPeso ? 'var(--green-primary)' : 'var(--text-primary)';
+    }
+
+    // Mostrar/ocultar aviso y hint
+    const aviso      = document.getElementById('peso-aviso');
+    const hint       = document.getElementById('precio-hint');
+    const stockField = document.getElementById('stock-field');
+    const labelPrecio= document.getElementById('label-precio');
+
+    if (aviso)       aviso.style.display      = esPeso ? 'flex' : 'none';
+    if (hint)        hint.style.display       = esPeso ? 'block' : 'none';
+    if (stockField)  stockField.style.display = esPeso ? 'none' : 'block';
+    if (labelPrecio) labelPrecio.textContent  = esPeso ? 'Precio de venta por kg *' : 'Precio de venta *';
   },
 
   async guardar(id) {
