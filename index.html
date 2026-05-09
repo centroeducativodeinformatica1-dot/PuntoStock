@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PuntoStock — Control Simple. Negocios en Orden.</title>
+  <meta name="description" content="Sistema de control de stock y ventas para emprendedores">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237ED321'/><text y='.9em' font-size='80' x='15' fill='%230D1117' font-weight='900'>P</text></svg>">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+<div id="auth-screen"></div>
+
+<div id="app" style="display:none;">
+
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">P</div>
+      <span class="logo-text">Punto<em>Stock</em></span>
+    </div>
+
+    <div class="sidebar-business">
+      <div class="biz-name" id="sidebar-biz-name">Cargando...</div>
+      <div class="biz-plan" id="sidebar-biz-plan">
+        <span style="color:var(--green-primary);">●</span> Sistema activo
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-label">Principal</div>
+
+        <div class="nav-item active" data-page="dashboard" onclick="PS.navigate('dashboard')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          Dashboard
+        </div>
+
+        <div class="nav-item" data-page="ventas" onclick="PS.navigate('ventas')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          Nueva venta
+        </div>
+
+        <div class="nav-item" data-page="stock" onclick="PS.navigate('stock')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+          Stock
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-label">Reportes</div>
+
+        <div class="nav-item" data-page="historial" onclick="PS.navigate('historial')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          Historial ventas
+        </div>
+
+        <div class="nav-item" data-page="caja" onclick="PS.navigate('caja')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="2" y="5" width="20" height="14" rx="2"/>
+            <line x1="2" y1="10" x2="22" y2="10"/>
+            <line x1="7" y1="15" x2="7.01" y2="15" stroke-width="3" stroke-linecap="round"/>
+            <line x1="11" y1="15" x2="13" y2="15" stroke-linecap="round"/>
+          </svg>
+          Cierre de caja
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-label">Gestión</div>
+
+        <div class="nav-item" data-page="clientes" onclick="PS.navigate('clientes')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Clientes
+        </div>
+
+        <div class="nav-item" data-page="proveedores" onclick="PS.navigate('proveedores')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="1" y="3" width="15" height="13" rx="2"/>
+            <path d="M16 8h4l3 3v5h-7V8z"/>
+            <circle cx="5.5" cy="18.5" r="2.5"/>
+            <circle cx="18.5" cy="18.5" r="2.5"/>
+          </svg>
+          Proveedores
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-label">Sistema</div>
+
+        <div class="nav-item" data-page="admin" id="admin-nav-item" onclick="PS.navigate('admin')" style="display:none;">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Panel Admin
+          <span class="admin-badge" style="margin-left:auto; font-size:9px;">ADMIN</span>
+        </div>
+
+        <div class="nav-item" data-page="config" onclick="PS.navigate('config')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Configuración
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="nav-item" onclick="Config.logout()">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Cerrar sesión
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main-content">
+    <header id="topbar">
+      <button onclick="toggleSidebar()" id="mobile-menu-btn"
+        style="display:none; background:none; border:none; color:var(--text-primary); cursor:pointer; padding:4px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
+      <span id="topbar-title" class="topbar-title">Dashboard</span>
+      <span class="topbar-date" id="topbar-clock"></span>
+
+      <div class="topbar-user" onclick="PS.navigate('config')">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <span id="topbar-user-name" style="font-size:13px; font-weight:600;
+              max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+      </div>
+    </header>
+
+    <main>
+      <div class="page" id="page-dashboard"></div>
+      <div class="page" id="page-ventas"></div>
+      <div class="page" id="page-stock"></div>
+      <div class="page" id="page-historial"></div>
+      <div class="page" id="page-clientes"></div>
+      <div class="page" id="page-proveedores"></div>
+      <div class="page" id="page-caja"></div>
+      <div class="page" id="page-admin"></div>
+      <div class="page" id="page-config"></div>
+    </main>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/app.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/ventas.js"></script>
+<script src="js/stock.js"></script>
+<script src="js/modules.js"></script>
+
+<script>
+  function updateClock() {
+    const el = document.getElementById('topbar-clock');
+    if (el) el.textContent = new Date().toLocaleString('es-AR', {
+      weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
+    });
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
+
+  function checkMobile() {
+    const btn = document.getElementById('mobile-menu-btn');
+    if (btn) btn.style.display = window.innerWidth <= 900 ? 'block' : 'none';
+  }
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+
+  PS.init();
+</script>
+</body>
+</html>
