@@ -731,15 +731,22 @@ const Caja = {
 };
 
 // ============================================================
-// PUNTOSTOCK — Admin Panel
+// PUNTOSTOCK — Admin Panel (completo con planes y facturación)
 // ============================================================
 
 const Admin = {
   async load() {
     if (!PS.isAdmin) {
       document.getElementById('page-admin').innerHTML = `
-        <div class="empty-state"><div class="empty-state-icon">🔒</div>
-        <h3>Acceso restringido</h3><p>Solo los administradores pueden ver esta sección.</p></div>`;
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h3>Acceso restringido</h3>
+          <p>Solo los administradores pueden ver esta sección.</p>
+        </div>`;
       return;
     }
 
@@ -751,45 +758,74 @@ const Admin = {
       const negocios = [];
       snap.forEach(d => negocios.push({ id: d.id, ...d.data() }));
 
+      // Calcular totales de facturación
+      const facturacionTotal = negocios.reduce((sum, n) => sum + Admin.calcMonto(n), 0);
+      const activos = negocios.filter(n => n.active).length;
+      const trial   = negocios.filter(n => n.plan === 'trial').length;
+      const pagos   = negocios.filter(n => n.plan !== 'trial').length;
+
       page.innerHTML = `
         <div class="page-header">
           <div class="page-header-title">
             Panel de Administración
             <span class="admin-badge" style="margin-left:10px;">ADMIN</span>
           </div>
-          <div style="font-size:13px; color:var(--text-secondary);">
-            ${negocios.length} negocios registrados
-          </div>
         </div>
 
+        <!-- Stats -->
         <div class="stat-grid" style="margin-bottom:24px;">
           <div class="stat-card" style="padding:14px 16px;">
+            <div class="stat-icon blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              </svg>
+            </div>
             <div class="stat-label">Total negocios</div>
             <div class="stat-value" style="font-size:22px;">${negocios.length}</div>
           </div>
           <div class="stat-card" style="padding:14px 16px;">
-            <div class="stat-label">Activos</div>
-            <div class="stat-value green" style="font-size:22px;">
-              ${negocios.filter(n => n.active).length}
+            <div class="stat-icon green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
             </div>
+            <div class="stat-label">Activos</div>
+            <div class="stat-value green" style="font-size:22px;">${activos}</div>
           </div>
           <div class="stat-card" style="padding:14px 16px;">
-            <div class="stat-label">Inactivos</div>
-            <div class="stat-value" style="font-size:22px; color:var(--red);">
-              ${negocios.filter(n => !n.active).length}
+            <div class="stat-icon orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
             </div>
+            <div class="stat-label">En trial</div>
+            <div class="stat-value" style="font-size:22px; color:var(--orange);">${trial}</div>
+          </div>
+          <div class="stat-card" style="padding:14px 16px;">
+            <div class="stat-icon green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <div class="stat-label">Facturación estimada</div>
+            <div class="stat-value green" style="font-size:18px;">${formatPrice(facturacionTotal)}</div>
+            <div class="stat-change up">${pagos} con plan pago</div>
           </div>
         </div>
 
+        <!-- Tabla -->
         <div class="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Negocio</th>
-                <th>Email / Owner</th>
-                <th>Teléfono</th>
-                <th>Plan</th>
-                <th>Registro</th>
+                <th>Negocio / Owner</th>
+                <th>Contacto</th>
+                <th>Plan solicitado</th>
+                <th>Negocios</th>
+                <th>Monto</th>
+                <th>Plan activo</th>
+                <th>Período</th>
+                <th>Venc. trial</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -800,64 +836,210 @@ const Admin = {
       `;
 
       const tbody = document.getElementById('admin-tbody');
-      tbody.innerHTML = negocios.map(n => `
-        <tr>
-          <td>
-            <div style="font-weight:700;">${n.name}</div>
-            <div style="font-size:11px; color:var(--text-muted);">${n.ownerName || ''}</div>
-          </td>
-          <td class="td-muted">${n.email || '—'}</td>
-          <td class="td-muted">${n.phone || '—'}</td>
-          <td>
-            <span class="badge ${n.plan === 'pro' ? 'badge-green' : 'badge-orange'}">
-              ${n.plan || 'trial'}
-            </span>
-          </td>
-          <td class="td-muted" style="font-size:12px;">${formatDate(n.createdAt)}</td>
-          <td>
-            <span class="badge ${n.active ? 'badge-green' : 'badge-red'}">
-              ${n.active ? 'Activo' : 'Inactivo'}
-            </span>
-          </td>
-          <td>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <label class="toggle" title="${n.active ? 'Desactivar' : 'Activar'}">
-                <input type="checkbox" ${n.active ? 'checked' : ''}
+      tbody.innerHTML = negocios.map(n => {
+        const trialEnd = n.trialEnds?.toDate ? n.trialEnds.toDate() : null;
+        const trialExp = trialEnd && new Date() > trialEnd;
+        const monto    = Admin.calcMonto(n);
+        const planSol  = Admin.planLabel(n.planSolicitado);
+
+        return `
+          <tr>
+            <td>
+              <div style="font-weight:700;">${n.name}</div>
+              <div style="font-size:11px; color:var(--text-muted);">${n.ownerName || ''}</div>
+            </td>
+            <td>
+              <div style="font-size:12px;">${n.email || '—'}</div>
+              <div style="font-size:11px; color:var(--text-muted);">${n.phone || ''}</div>
+            </td>
+            <td>
+              <span class="badge ${Admin.planBadgeClass(n.planSolicitado)}" style="font-size:10px;">
+                ${planSol}
+              </span>
+            </td>
+            <td style="text-align:center; font-family:var(--font-mono); font-weight:700;">
+              ${n.cantidadNegocios || 1}
+            </td>
+            <td class="td-mono" style="font-weight:700; color:var(--green-primary);">
+              ${monto ? formatPrice(monto) : '—'}
+            </td>
+            <td>
+              <select onchange="Admin.cambiarPlan('${n.id}', this.value)"
+                style="padding:4px 8px; font-size:12px; max-width:130px; border-radius:6px;">
+                <option ${n.plan==='trial'      ?'selected':''} value="trial">Trial</option>
+                <option ${n.plan==='pro_mensual'?'selected':''} value="pro_mensual">Pro Mensual</option>
+                <option ${n.plan==='pro_anual'  ?'selected':''} value="pro_anual">Pro Anual</option>
+                <option ${n.plan==='multi'      ?'selected':''} value="multi">Multi-negocio</option>
+              </select>
+            </td>
+            <td>
+              <select onchange="Admin.cambiarPeriodo('${n.id}', this.value)"
+                style="padding:4px 8px; font-size:12px; max-width:100px; border-radius:6px;">
+                <option ${n.periodo==='mensual'||!n.periodo?'selected':''} value="mensual">Mensual</option>
+                <option ${n.periodo==='anual'?'selected':''} value="anual">Anual</option>
+              </select>
+            </td>
+            <td style="font-size:12px; white-space:nowrap;">
+              ${trialEnd
+                ? `<span style="color:${trialExp?'var(--red)':'var(--orange)'};">
+                    ${trialExp ? 'Vencido' : formatDate({toDate:()=>trialEnd})}
+                  </span>`
+                : '—'}
+            </td>
+            <td>
+              <label class="toggle" title="${n.active?'Desactivar':'Activar'}">
+                <input type="checkbox" ${n.active?'checked':''}
                   onchange="Admin.toggleActive('${n.id}', this.checked, '${n.name}')">
                 <span class="toggle-slider"></span>
               </label>
-              <select onchange="Admin.cambiarPlan('${n.id}', this.value)"
-                style="padding:4px 8px; font-size:12px; max-width:100px;">
-                <option ${n.plan==='trial'?'selected':''} value="trial">Trial</option>
-                <option ${n.plan==='pro'?'selected':''} value="pro">Pro</option>
-                <option ${n.plan==='enterprise'?'selected':''} value="enterprise">Enterprise</option>
-              </select>
-            </div>
-          </td>
-        </tr>
-      `).join('');
+            </td>
+            <td>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button class="btn btn-sm btn-secondary"
+                  onclick="Admin.extenderTrial('${n.id}', '${n.name}')">
+                  +Trial
+                </button>
+                <button class="btn btn-sm btn-secondary"
+                  onclick="Admin.editarNegocios('${n.id}', ${n.cantidadNegocios||1}, '${n.name}')">
+                  Negocios
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
     } catch (e) {
-      page.innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><h3>Error</h3><p>${e.message}</p></div>`;
+      page.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${e.message}</p></div>`;
     }
   },
 
+  // ── Helpers de plan ──────────────────────────────────────
+  planLabel(p) {
+    return { trial:'Trial 7d', pro_mensual:'Pro Mensual', pro_anual:'Pro Anual', multi:'Multi' }[p] || p || '—';
+  },
+
+  planBadgeClass(p) {
+    return { trial:'badge-muted', pro_mensual:'badge-green', pro_anual:'badge-blue', multi:'badge-orange' }[p] || 'badge-muted';
+  },
+
+  calcMonto(n) {
+    const plan = n.plan || 'trial';
+    const cant = n.cantidadNegocios || 1;
+    const per  = n.periodo || 'mensual';
+    if (plan === 'trial') return 0;
+    if (plan === 'pro_mensual') return 20000;
+    if (plan === 'pro_anual')   return 20000; // anual único
+    if (plan === 'multi')       return cant * 15000 * 12; // anual
+    return 0;
+  },
+
+  // ── Acciones ─────────────────────────────────────────────
   async toggleActive(id, active, nombre) {
     try {
       await db.collection('businesses').doc(id).update({ active });
-      showToast(`${nombre}: ${active ? 'Activado ✅' : 'Desactivado ❌'}`, active ? 'success' : 'warning');
-    } catch (e) {
-      showToast('Error: ' + e.message, 'error');
-    }
+      showToast(`${nombre}: ${active ? 'Activado' : 'Desactivado'}`, active ? 'success' : 'warning');
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
   },
 
   async cambiarPlan(id, plan) {
     try {
       await db.collection('businesses').doc(id).update({ plan });
-      showToast(`Plan actualizado a ${plan}`, 'success');
-    } catch (e) {
-      showToast('Error: ' + e.message, 'error');
+      showToast('Plan actualizado a ' + this.planLabel(plan), 'success');
+      // Recalcular fila
+      setTimeout(() => Admin.load(), 500);
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  },
+
+  async cambiarPeriodo(id, periodo) {
+    try {
+      await db.collection('businesses').doc(id).update({ periodo });
+      showToast('Período actualizado', 'success');
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  },
+
+  extenderTrial(id, nombre) {
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Extender trial — ${nombre}</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Días adicionales</label>
+        <input type="number" id="ext-dias" value="7" min="1" max="365">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;" onclick="Admin.confirmarExtension('${id}')">
+          Extender trial
+        </button>
+      </div>
+    `);
+  },
+
+  async confirmarExtension(id) {
+    const dias = parseInt(document.getElementById('ext-dias').value) || 7;
+    try {
+      const snap = await db.collection('businesses').doc(id).get();
+      const actual = snap.data().trialEnds?.toDate
+        ? snap.data().trialEnds.toDate()
+        : new Date();
+      const nueva = new Date(Math.max(actual, new Date()));
+      nueva.setDate(nueva.getDate() + dias);
+      await db.collection('businesses').doc(id).update({ trialEnds: nueva });
+      showToast(`Trial extendido ${dias} días`, 'success');
+      closeModal();
+      Admin.load();
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  },
+
+  editarNegocios(id, cantActual, nombre) {
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Cantidad de negocios — ${nombre}</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Negocios habilitados</label>
+        <input type="number" id="edit-cant" value="${cantActual}" min="1" max="50"
+          oninput="Admin.previewMonto(this.value)">
+      </div>
+      <div id="monto-preview" style="background:var(--bg-card); border:1px solid var(--border);
+           border-radius:var(--radius-md); padding:12px; font-size:13px; color:var(--text-secondary);">
+        ${cantActual > 1
+          ? `Multi-negocio: <strong style="color:var(--green-primary);">${formatPrice(cantActual * 15000 * 12)}/año</strong>`
+          : `Plan individual: <strong style="color:var(--green-primary);">$20.000/mes</strong>`}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;" onclick="Admin.guardarNegocios('${id}')">
+          Guardar
+        </button>
+      </div>
+    `);
+  },
+
+  previewMonto(cant) {
+    cant = parseInt(cant) || 1;
+    const el = document.getElementById('monto-preview');
+    if (!el) return;
+    if (cant > 1) {
+      el.innerHTML = `Multi-negocio (${cant}): <strong style="color:var(--green-primary);">${formatPrice(cant * 15000 * 12)}/año</strong>`;
+    } else {
+      el.innerHTML = `Plan individual: <strong style="color:var(--green-primary);">$20.000/mes</strong>`;
     }
+  },
+
+  async guardarNegocios(id) {
+    const cant = parseInt(document.getElementById('edit-cant').value) || 1;
+    try {
+      const updates = { cantidadNegocios: cant };
+      if (cant > 1) updates.plan = 'multi';
+      await db.collection('businesses').doc(id).update(updates);
+      showToast('Cantidad de negocios actualizada', 'success');
+      closeModal();
+      Admin.load();
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
   }
 };
 

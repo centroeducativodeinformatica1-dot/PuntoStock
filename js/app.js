@@ -132,6 +132,11 @@ const PS = {
       setTimeout(() => this.showTrialBanner(), 800);
     }
 
+    // Popup WhatsApp para usuarios no admin (siempre al entrar, no solo nuevos)
+    if (!this.isAdmin) {
+      setTimeout(() => Auth.showUpgradePopup(), 1200);
+    }
+
     // Tidio solo para usuarios con plan trial
     if (!this.isAdmin && (this.businessData?.plan === 'trial' || !this.businessData?.plan)) {
       this.loadTidio();
