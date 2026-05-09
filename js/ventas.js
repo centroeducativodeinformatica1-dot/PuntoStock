@@ -111,18 +111,23 @@ const Ventas = {
             <!-- Controles de cámara -->
             <div style="position:absolute; top:8px; right:8px; display:flex; gap:6px;">
               <!-- Botón linterna -->
-              <button id="btn-torch" onclick="Ventas.toggleTorch()" title="Encender linterna"
-                style="background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.2);
-                       color:white; width:36px; height:36px; border-radius:8px;
-                       cursor:pointer; display:flex; align-items:center; justify-content:center;
-                       transition:all 0.2s; font-size:18px;">
+              <button id="btn-torch" onclick="Ventas.toggleTorch()"
+                style="background:rgba(0,0,0,0.75); border:2px solid rgba(255,255,255,0.35);
+                       color:white; width:48px; height:48px; border-radius:12px;
+                       cursor:pointer; display:none; flex-direction:column;
+                       align-items:center; justify-content:center; gap:2px;
+                       transition:all 0.2s; font-size:20px; line-height:1;">
                 💡
+                <span id="torch-label" style="font-size:9px; font-weight:800; letter-spacing:0.5px;">OFF</span>
               </button>
               <!-- Cerrar cámara -->
               <button onclick="Ventas.stopCamera()"
-                style="background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.2);
-                       color:white; width:36px; height:36px; border-radius:8px;
-                       cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px;">
+                style="background:rgba(0,0,0,0.75); border:2px solid rgba(255,255,255,0.35);
+                       color:white; width:48px; height:48px; border-radius:12px;
+                       cursor:pointer; display:flex; align-items:center; justify-content:center;
+                       font-size:20px; transition:all 0.2s;"
+                onmouseenter="this.style.background='rgba(248,81,73,0.8)'"
+                onmouseleave="this.style.background='rgba(0,0,0,0.75)'">
                 ✕
               </button>
             </div>
@@ -640,7 +645,8 @@ const Ventas = {
   // Encender/apagar linterna
   async toggleTorch() {
     if (!this._videoTrack) return;
-    const torchBtn = document.getElementById('btn-torch');
+    const torchBtn  = document.getElementById('btn-torch');
+    const torchLabel= document.getElementById('torch-label');
 
     try {
       this.torchOn = !this.torchOn;
@@ -649,14 +655,16 @@ const Ventas = {
       });
 
       if (torchBtn) {
-        torchBtn.style.background = this.torchOn
-          ? 'rgba(126,211,33,0.3)'
-          : 'rgba(0,0,0,0.65)';
+        torchBtn.style.background  = this.torchOn
+          ? 'rgba(126,211,33,0.85)'
+          : 'rgba(0,0,0,0.75)';
         torchBtn.style.borderColor = this.torchOn
           ? 'var(--green-primary)'
-          : 'rgba(255,255,255,0.2)';
-        torchBtn.title = this.torchOn ? 'Apagar linterna' : 'Encender linterna';
+          : 'rgba(255,255,255,0.35)';
+        torchBtn.style.color = this.torchOn ? '#0D1117' : 'white';
       }
+      if (torchLabel) torchLabel.textContent = this.torchOn ? 'ON' : 'OFF';
+
     } catch (e) {
       showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
       this.torchOn = false;
@@ -814,7 +822,111 @@ const Ventas = {
         showToast(`${prod.nombre} agregado`, 'success', 1500);
       }
     } else {
-      showToast(`Código no encontrado: ${code}`, 'warning');
+      // Código no encontrado → ofrecer registrar el producto
+      this.mostrarProductoNoEncontrado(code);
+    }
+  },
+
+  mostrarProductoNoEncontrado(code) {
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Código no encontrado</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+
+      <div style="background:rgba(240,165,0,0.08); border:1px solid rgba(240,165,0,0.25);
+                  border-radius:var(--radius-md); padding:14px 16px; margin-bottom:20px;
+                  display:flex; align-items:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" style="flex-shrink:0;">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div>
+          <div style="font-weight:700; font-size:13px; color:var(--orange);">Código no encontrado en el sistema</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px; font-family:var(--font-mono);">${code}</div>
+        </div>
+      </div>
+
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:20px; line-height:1.6;">
+        ¿Querés registrar este producto ahora y agregarlo al carrito?
+      </p>
+
+      <!-- Formulario rápido -->
+      <div class="form-group">
+        <label>Nombre del producto *</label>
+        <input type="text" id="nf-nombre" placeholder="Ej: Galletitas Oreo" autofocus>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Precio de venta *</label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                         color:var(--text-muted); font-weight:600;">$</span>
+            <input type="number" id="nf-precio" min="0" step="0.01" style="padding-left:26px;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Stock inicial</label>
+          <input type="number" id="nf-stock" value="1" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Categoría</label>
+        <input type="text" id="nf-cat" placeholder="Ej: Almacén">
+      </div>
+
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
+                  padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:4px;">
+        El código <strong style="font-family:var(--font-mono); color:var(--text-primary);">${code}</strong>
+        se guardará como código de barras del producto.
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;"
+          onclick="Ventas.registrarYAgregar('${code}')">
+          Registrar y agregar al carrito
+        </button>
+      </div>
+    `);
+  },
+
+  async registrarYAgregar(code) {
+    const nombre = document.getElementById('nf-nombre')?.value.trim();
+    const precio = parseFloat(document.getElementById('nf-precio')?.value);
+    const stock  = parseInt(document.getElementById('nf-stock')?.value) || 0;
+    const cat    = document.getElementById('nf-cat')?.value.trim();
+
+    if (!nombre) { showToast('Ingresá el nombre del producto', 'warning'); return; }
+    if (!precio || precio <= 0) { showToast('Ingresá un precio válido', 'warning'); return; }
+
+    try {
+      const bizRef = db.collection('businesses').doc(PS.businessId);
+      const ref = await bizRef.collection('productos').add({
+        nombre, precio, stock, activo: true,
+        codigoBarra: code,
+        categoria: cat || '',
+        unidad: 'unidad',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Agregar al array local
+      const newProd = { id: ref.id, nombre, precio, stock, activo: true, codigoBarra: code, categoria: cat || '', unidad: 'unidad' };
+      this.productos.push(newProd);
+      this.productosFiltrados = [...this.productos];
+      this.renderProductos();
+
+      // Agregar al carrito directamente
+      this.cart.push({ id: ref.id, nombre, precio, cantidad: 1, stockMax: Math.max(stock, 999) });
+      this.renderCart();
+      this.updateTotals();
+
+      closeModal();
+      showToast(`${nombre} registrado y agregado al carrito`, 'success');
+
+    } catch (e) {
+      showToast('Error al registrar: ' + e.message, 'error');
     }
   },
 

@@ -232,7 +232,62 @@ const Stock = {
         </div>
         <div class="form-group">
           <label>Código de barras</label>
-          <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}"
+              style="flex:1;" placeholder="Escribí o escaneá">
+            <button type="button" onclick="Stock.abrirCamaraBarcode()"
+              title="Escanear con cámara"
+              style="width:42px; height:42px; flex-shrink:0; background:var(--bg-card);
+                     border:1px solid var(--border); border-radius:var(--radius-md);
+                     cursor:pointer; display:flex; align-items:center; justify-content:center;
+                     color:var(--text-secondary); transition:all 0.2s;"
+              onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
+              onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
+          </div>
+          <!-- Visor de cámara en el modal de stock -->
+          <div id="stock-camera-container" style="display:none; margin-top:8px; position:relative;
+               border-radius:var(--radius-md); overflow:hidden; border:2px solid var(--green-primary); background:#000;">
+            <video id="stock-camera-video" autoplay playsinline muted
+              style="width:100%; max-height:200px; object-fit:cover; display:block;"></video>
+            <canvas id="stock-camera-canvas" style="display:none;"></canvas>
+            <!-- Marco -->
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;">
+              <div style="position:relative; width:200px; height:70px;">
+                <div style="position:absolute; inset:0; box-shadow:0 0 0 9999px rgba(0,0,0,0.45); border-radius:4px;"></div>
+                <div style="position:absolute; inset:0; border:2px solid var(--green-primary); border-radius:4px;"></div>
+                <div style="position:absolute; top:-2px; left:-2px; width:16px; height:16px; border-top:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
+                <div style="position:absolute; top:-2px; right:-2px; width:16px; height:16px; border-top:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
+                <div style="position:absolute; bottom:-2px; left:-2px; width:16px; height:16px; border-bottom:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
+                <div style="position:absolute; bottom:-2px; right:-2px; width:16px; height:16px; border-bottom:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
+              </div>
+            </div>
+            <!-- Controles -->
+            <div style="position:absolute; top:6px; right:6px; display:flex; gap:5px;">
+              <button id="stock-torch-btn" onclick="Stock.toggleTorch()" title="Linterna"
+                style="width:34px; height:34px; background:rgba(0,0,0,0.65);
+                       border:2px solid rgba(255,255,255,0.25); border-radius:8px;
+                       cursor:pointer; display:none; align-items:center; justify-content:center;
+                       font-size:16px; transition:all 0.2s;">
+                💡
+              </button>
+              <button onclick="Stock.stopCamara()"
+                style="width:34px; height:34px; background:rgba(0,0,0,0.65);
+                       border:2px solid rgba(255,255,255,0.25); border-radius:8px;
+                       cursor:pointer; display:flex; align-items:center; justify-content:center;
+                       color:white; font-size:15px;">✕</button>
+            </div>
+            <div id="stock-camera-status"
+              style="position:absolute; bottom:0; left:0; right:0; padding:6px;
+                     background:linear-gradient(transparent,rgba(0,0,0,0.8));
+                     text-align:center; font-size:11px; font-weight:600; color:white;">
+              Apuntá al código de barras
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label id="label-precio">Precio de venta${esPeso ? ' por kg *' : ' *'}</label>
@@ -454,5 +509,161 @@ const Stock = {
         showToast('Error: ' + e.message, 'error');
       }
     });
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // CÁMARA EN MODAL DE STOCK — para escanear código de barras
+  // ══════════════════════════════════════════════════════════
+  _stockStream: null,
+  _stockScanInterval: null,
+  _stockTorchOn: false,
+  _stockVideoTrack: null,
+
+  async abrirCamaraBarcode() {
+    const container = document.getElementById('stock-camera-container');
+    const video     = document.getElementById('stock-camera-video');
+    const status    = document.getElementById('stock-camera-status');
+    if (!container || !video) return;
+
+    // Si ya está abierta, cerrar
+    if (this._stockStream) { this.stopCamara(); return; }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      });
+      this._stockStream = stream;
+      video.srcObject = stream;
+      container.style.display = 'block';
+
+      // Linterna
+      const track = stream.getVideoTracks()[0];
+      this._stockVideoTrack = track;
+      const caps = track.getCapabilities?.() || {};
+      const torchBtn = document.getElementById('stock-torch-btn');
+      if (torchBtn) torchBtn.style.display = caps.torch ? 'flex' : 'none';
+
+      // Cargar ZXing si no está
+      if (!window.ZXing) {
+        if (status) status.textContent = 'Cargando lector...';
+        await new Promise((resolve) => {
+          if (window.ZXing) { resolve(); return; }
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
+          s.onload = resolve;
+          s.onerror = resolve;
+          document.head.appendChild(s);
+        });
+      }
+
+      if (status) status.textContent = 'Apuntá al código de barras';
+      this._iniciarScanStock(video);
+
+    } catch (e) {
+      if (e.name === 'NotAllowedError') {
+        showToast('Permiso de cámara denegado. Habilitalo en el navegador.', 'error', 5000);
+      } else {
+        showToast('No se pudo acceder a la cámara.', 'error');
+      }
+    }
+  },
+
+  _iniciarScanStock(video) {
+    if (!window.ZXing) return;
+    const canvas  = document.getElementById('stock-camera-canvas');
+    const status  = document.getElementById('stock-camera-status');
+    const ctx     = canvas.getContext('2d');
+
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX,
+      ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.CODABAR
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    const reader = new ZXing.MultiFormatReader();
+    reader.setHints(hints);
+
+    this._stockScanInterval = setInterval(() => {
+      if (video.readyState < 2) return;
+      try {
+        canvas.width  = video.videoWidth  || 640;
+        canvas.height = video.videoHeight || 480;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+        const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+        const result    = reader.decode(bitmap);
+
+        if (result) {
+          const code = result.getText();
+          // Poner el código en el input
+          const input = document.getElementById('prod-barcode');
+          if (input) {
+            input.value = code;
+            input.style.borderColor = 'var(--green-primary)';
+            input.style.boxShadow   = '0 0 0 3px var(--green-muted)';
+          }
+          if (status) status.textContent = `Detectado: ${code}`;
+          // Beep
+          this._beepStock();
+          showToast(`Código escaneado: ${code}`, 'success', 2000);
+          this.stopCamara();
+        }
+      } catch (e) { /* NotFoundException = sin código en frame */ }
+    }, 250);
+  },
+
+  async toggleTorch() {
+    if (!this._stockVideoTrack) return;
+    const torchBtn = document.getElementById('stock-torch-btn');
+    this._stockTorchOn = !this._stockTorchOn;
+    try {
+      await this._stockVideoTrack.applyConstraints({
+        advanced: [{ torch: this._stockTorchOn }]
+      });
+      if (torchBtn) {
+        torchBtn.style.background   = this._stockTorchOn ? 'rgba(126,211,33,0.3)' : 'rgba(0,0,0,0.65)';
+        torchBtn.style.borderColor  = this._stockTorchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.25)';
+        torchBtn.title = this._stockTorchOn ? 'Apagar linterna' : 'Encender linterna';
+      }
+    } catch (e) {
+      showToast('Este dispositivo no soporta linterna.', 'warning');
+      this._stockTorchOn = false;
+    }
+  },
+
+  stopCamara() {
+    if (this._stockVideoTrack && this._stockTorchOn) {
+      this._stockVideoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+    }
+    if (this._stockStream) {
+      this._stockStream.getTracks().forEach(t => t.stop());
+      this._stockStream = null;
+    }
+    if (this._stockScanInterval) {
+      clearInterval(this._stockScanInterval);
+      this._stockScanInterval = null;
+    }
+    this._stockVideoTrack = null;
+    this._stockTorchOn = false;
+    const container = document.getElementById('stock-camera-container');
+    if (container) container.style.display = 'none';
+  },
+
+  _beepStock() {
+    try {
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 1200;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
+    } catch (e) { /* sin audio = ok */ }
   }
 };
