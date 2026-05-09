@@ -171,31 +171,31 @@ const Stock = {
       <div class="grid-2">
         <div class="form-group" style="grid-column:1/-1;">
           <label>Nombre del producto *</label>
-          <input type="text" id="prod-nombre" value="${prod?.nombre || ''}" placeholder="Ej: Remera Oversize T.M">
+          <input type="text" id="prod-nombre" value="${prod?.nombre || ''}" placeholder="">
         </div>
         <div class="form-group">
           <label>Código / SKU</label>
-          <input type="text" id="prod-codigo" value="${prod?.codigo || ''}" placeholder="SKU001">
+          <input type="text" id="prod-codigo" value="${prod?.codigo || ''}" placeholder="">
         </div>
         <div class="form-group">
           <label>Código de barras</label>
-          <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}" placeholder="7891234567890">
+          <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}" placeholder="">
         </div>
         <div class="form-group">
           <label>Precio de venta *</label>
-          <input type="number" id="prod-precio" value="${prod?.precio || ''}" placeholder="0" min="0" step="0.01">
+          <input type="number" id="prod-precio" value="${prod?.precio || ''}" placeholder="" min="0" step="0.01">
         </div>
         <div class="form-group">
           <label>Precio de costo</label>
-          <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" placeholder="0" min="0" step="0.01">
+          <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" placeholder="" min="0" step="0.01">
         </div>
         <div class="form-group">
           <label>Stock actual</label>
-          <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" placeholder="0" min="0">
+          <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" placeholder="" min="0">
         </div>
         <div class="form-group">
           <label>Categoría</label>
-          <input type="text" id="prod-cat" value="${prod?.categoria || ''}" placeholder="Ropa, Calzado..."
+          <input type="text" id="prod-cat" value="${prod?.categoria || ''}" placeholder=""
             list="cats-datalist">
           <datalist id="cats-datalist">
             ${cats.map(c => `<option value="${c}">`).join('')}
@@ -203,7 +203,7 @@ const Stock = {
         </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label>Descripción</label>
-          <input type="text" id="prod-desc" value="${prod?.descripcion || ''}" placeholder="Descripción opcional">
+          <input type="text" id="prod-desc" value="${prod?.descripcion || ''}" placeholder="">
         </div>
       </div>
 

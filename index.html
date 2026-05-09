@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PuntoStock — Control Simple. Negocios en Orden.</title>
-  <meta name="description" content="Sistema de control de stock y ventas para emprendedores">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237ED321'/><text y='.9em' font-size='80' x='15' fill='%230D1117' font-weight='900'>P</text></svg>">
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -17,6 +16,7 @@
 
 <div id="app" style="display:none;">
 
+  <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-logo">
       <div class="logo-icon">P</div>
@@ -36,10 +36,8 @@
 
         <div class="nav-item active" data-page="dashboard" onclick="PS.navigate('dashboard')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <rect x="3" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="14" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
           </svg>
           Dashboard
         </div>
@@ -158,6 +156,13 @@
 
       <span id="topbar-title" class="topbar-title">Dashboard</span>
       <span class="topbar-date" id="topbar-clock"></span>
+
+      <!-- Theme toggle -->
+      <button class="theme-btn" id="theme-toggle-btn" onclick="Theme.toggle()" title="Cambiar tema">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
 
       <div class="topbar-user" onclick="PS.navigate('config')">
         <div class="user-avatar" id="user-avatar">?</div>
