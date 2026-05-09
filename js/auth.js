@@ -32,7 +32,7 @@ const PLANES = {
     id: 'pro_anual',
     nombre: 'Pro — 1 negocio anual',
     precio_mensual: null,
-    precio_anual: 20000,
+    precio_anual: 200000,
     negocios: 1,
     descripcion: 'Para un negocio, pago anual único',
     features: ['Todo incluido', 'Soporte prioritario', 'Sin límite de productos', 'Cierre de caja'],
@@ -45,10 +45,10 @@ const PLANES = {
     precio_mensual: null,
     precio_anual: 150000,
     negocios: 'multiple',
-    descripcion: '$15.000 por negocio · pago anual',
+    descripcion: '$15.000 por negocio/mes',
     features: ['Múltiples negocios', 'Panel unificado', 'Selector de negocio activo', 'Todo incluido en Pro'],
     color: 'var(--purple)',
-    badge: '$15.000 c/u'
+    badge: '$15.000 c/u/mes'
   }
 };
 
@@ -69,9 +69,8 @@ const Auth = {
   loginHTML() {
     return `
       <div class="auth-card">
-        <div class="auth-logo">
-          <div class="logo-icon">P</div>
-          <span>Punto<em>Stock</em></span>
+        <div class="auth-logo" style="justify-content:center;">
+          <img src="../logo.png" alt="PuntoStock" style="height:40px; width:auto;">
         </div>
         <h2 class="auth-title">Bienvenido de nuevo</h2>
         <p class="auth-subtitle">Ingresá a tu cuenta para continuar</p>
@@ -117,11 +116,8 @@ const Auth = {
 
         <!-- Header -->
         <div style="text-align:center; margin-bottom:40px; max-width:600px;">
-          <div class="auth-logo" style="justify-content:center; margin-bottom:20px;">
-            <div class="logo-icon">P</div>
-            <span style="font-size:22px; font-weight:800; color:var(--text-primary);">
-              Punto<em style="color:var(--green-primary); font-style:normal;">Stock</em>
-            </span>
+          <div style="margin-bottom:20px; text-align:center;">
+            <img src="../logo.png" alt="PuntoStock" style="height:44px; width:auto;">
           </div>
           <h1 style="font-size:clamp(24px,4vw,36px); font-weight:900; letter-spacing:-1px; margin-bottom:10px; line-height:1.1;">
             Elegí tu plan
@@ -182,13 +178,13 @@ const Auth = {
           <!-- PRO ANUAL -->
           <div class="plan-select-card" onclick="Auth.selectPlan('pro_anual')" id="plan-pro_anual">
             <div class="plan-select-badge" style="background:rgba(88,166,255,0.12); color:var(--blue);">
-              Pago único anual
+              Pago único — 1 año
             </div>
             <div class="plan-select-name">Pro · 1 negocio anual</div>
             <div class="plan-select-price">
               <span style="font-size:14px; font-weight:600; color:var(--text-secondary);">$</span>
-              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">20.000</span>
-              <span style="font-size:13px; color:var(--text-secondary);">/año</span>
+              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">200.000</span>
+              <span style="font-size:13px; color:var(--text-secondary);">pago único</span>
             </div>
             <div class="plan-select-desc">Un solo pago anual para un negocio.</div>
             <ul class="plan-select-features">
@@ -205,13 +201,15 @@ const Auth = {
           <!-- MULTI-NEGOCIO -->
           <div class="plan-select-card" onclick="Auth.selectPlan('multi')" id="plan-multi">
             <div class="plan-select-badge" style="background:rgba(139,92,246,0.12); color:var(--purple);">
-              $15.000 c/u anual
+              $15.000 c/u/mes
             </div>
             <div class="plan-select-name">Multi-negocio</div>
             <div class="plan-select-price">
-              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">$150.000</span>
+              <span style="font-size:14px; font-weight:600; color:var(--text-secondary);">$</span>
+              <span style="font-size:30px; font-weight:900; font-family:var(--font-mono);">15.000</span>
+              <span style="font-size:13px; color:var(--text-secondary);">/negocio/mes</span>
             </div>
-            <div class="plan-select-desc">Más de un negocio · $15.000 por negocio · pago anual.</div>
+            <div class="plan-select-desc">Más de un negocio · $15.000 por negocio por mes.</div>
             <ul class="plan-select-features">
               <li>Múltiples negocios</li>
               <li>Selector de negocio activo</li>
@@ -316,9 +314,8 @@ const Auth = {
 
     return `
       <div class="auth-card" style="max-width:480px;">
-        <div class="auth-logo">
-          <div class="logo-icon">P</div>
-          <span>Punto<em>Stock</em></span>
+        <div style="margin-bottom:16px;">
+          <img src="../logo.png" alt="PuntoStock" style="height:36px; width:auto;">
         </div>
 
         <!-- Plan elegido -->
@@ -366,7 +363,7 @@ const Auth = {
             </div>
           </div>
           <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">
-            $15.000 × cantidad de negocios × 12 meses
+            $15.000 × cantidad de negocios · mensual
           </div>
         </div>
         ` : ''}
@@ -518,8 +515,8 @@ const Auth = {
     const planNombres = {
       trial:       'Prueba gratuita (7 días)',
       pro_mensual: 'Pro Mensual — $20.000/mes',
-      pro_anual:   'Pro Anual — $20.000/año',
-      multi:       `Multi-negocio — $15.000 c/u anual`
+      pro_anual:   'Pro Anual — $200.000 pago único',
+      multi:       `Multi-negocio — $15.000 c/u/mes`
     };
 
     const planNombre = planNombres[planSol] || 'Plan Pro';

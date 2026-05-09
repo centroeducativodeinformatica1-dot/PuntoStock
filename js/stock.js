@@ -201,6 +201,17 @@ const Stock = {
             ${cats.map(c => `<option value="${c}">`).join('')}
           </datalist>
         </div>
+        <div class="form-group">
+          <label>Unidad de venta</label>
+          <select id="prod-unidad">
+            <option value="unidad" ${prod?.unidad === 'unidad' || !prod?.unidad ? 'selected' : ''}>Unidad (cantidad entera)</option>
+            <option value="kg"     ${prod?.unidad === 'kg' ? 'selected' : ''}>Kilogramo (precio por kg · balanza)</option>
+            <option value="g"      ${prod?.unidad === 'g'  ? 'selected' : ''}>Gramo (precio por kg · balanza)</option>
+          </select>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">
+            Si elegís kg o g, al vender se abrirá la calculadora de balanza automáticamente.
+          </div>
+        </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label>Descripción</label>
           <input type="text" id="prod-desc" value="${prod?.descripcion || ''}" placeholder="">
@@ -234,6 +245,7 @@ const Stock = {
     const codigo   = document.getElementById('prod-codigo').value.trim();
     const barcode  = document.getElementById('prod-barcode').value.trim();
     const cat      = document.getElementById('prod-cat').value.trim();
+    const unidad   = document.getElementById('prod-unidad').value;
     const desc     = document.getElementById('prod-desc').value.trim();
     const activo   = document.getElementById('prod-activo').checked;
 
@@ -241,7 +253,7 @@ const Stock = {
     if (isNaN(precio) || precio < 0) { showToast('Precio inválido', 'error'); return; }
 
     const data = {
-      nombre, precio, stock, activo,
+      nombre, precio, stock, activo, unidad,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (costo) data.precioCosto = costo;
