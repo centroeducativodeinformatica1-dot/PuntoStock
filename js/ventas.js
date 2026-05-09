@@ -835,60 +835,71 @@ const Ventas = {
       </div>
 
       <div style="background:rgba(240,165,0,0.08); border:1px solid rgba(240,165,0,0.25);
-                  border-radius:var(--radius-md); padding:14px 16px; margin-bottom:20px;
+                  border-radius:var(--radius-md); padding:14px 16px; margin-bottom:16px;
                   display:flex; align-items:center; gap:10px;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" style="flex-shrink:0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" style="flex-shrink:0;">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
         <div>
-          <div style="font-weight:700; font-size:13px; color:var(--orange);">Código no encontrado en el sistema</div>
-          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px; font-family:var(--font-mono);">${code}</div>
+          <div style="font-weight:700; font-size:13px; color:var(--orange);">Código no registrado</div>
+          <div style="font-size:13px; color:var(--text-secondary); margin-top:2px; font-family:var(--font-mono); word-break:break-all;">${code}</div>
         </div>
       </div>
 
-      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:20px; line-height:1.6;">
-        ¿Querés registrar este producto ahora y agregarlo al carrito?
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px; line-height:1.6;">
+        Cargá los datos básicos para agregar al carrito ahora, o andá a <strong>Stock</strong> para registrarlo completo.
       </p>
 
       <!-- Formulario rápido -->
       <div class="form-group">
         <label>Nombre del producto *</label>
-        <input type="text" id="nf-nombre" placeholder="Ej: Galletitas Oreo" autofocus>
+        <input type="text" id="nf-nombre" placeholder="Ej: Galletitas Oreo" autofocus
+          style="font-size:16px; padding:12px 14px;">
       </div>
-      <div class="grid-2">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="form-group">
           <label>Precio de venta *</label>
           <div style="position:relative;">
             <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
                          color:var(--text-muted); font-weight:600;">$</span>
-            <input type="number" id="nf-precio" min="0" step="0.01" style="padding-left:26px;">
+            <input type="number" id="nf-precio" min="0" step="0.01" style="padding-left:26px; font-size:16px;"
+              inputmode="decimal">
           </div>
         </div>
         <div class="form-group">
           <label>Stock inicial</label>
-          <input type="number" id="nf-stock" value="1" min="0">
+          <input type="number" id="nf-stock" value="1" min="0" style="font-size:16px;" inputmode="numeric">
         </div>
       </div>
       <div class="form-group">
         <label>Categoría</label>
-        <input type="text" id="nf-cat" placeholder="Ej: Almacén">
+        <input type="text" id="nf-cat" placeholder="Ej: Almacén" style="font-size:16px;">
       </div>
 
       <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
-                  padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:4px;">
+                  padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:16px;">
         El código <strong style="font-family:var(--font-mono); color:var(--text-primary);">${code}</strong>
-        se guardará como código de barras del producto.
+        se guardará como código de barras.
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" style="width:auto;"
-          onclick="Ventas.registrarYAgregar('${code}')">
-          Registrar y agregar al carrito
+      <div class="modal-footer" style="flex-direction:column; gap:8px;">
+        <div style="display:flex; gap:8px; width:100%;">
+          <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">Cancelar</button>
+          <button class="btn btn-primary" style="flex:2;"
+            onclick="Ventas.registrarYAgregar('${code}')">
+            ✓ Registrar y agregar
+          </button>
+        </div>
+        <button class="btn btn-ghost w-full" style="font-size:12px; color:var(--text-secondary);"
+          onclick="closeModal(); PS.navigate('stock');">
+          Ir a Stock para registrarlo completo →
         </button>
       </div>
     `);
+
+    // Auto-focus en el nombre después del render
+    setTimeout(() => document.getElementById('nf-nombre')?.focus(), 100);
   },
 
   async registrarYAgregar(code) {

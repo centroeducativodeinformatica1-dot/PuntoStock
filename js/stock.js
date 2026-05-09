@@ -23,11 +23,12 @@ const Stock = {
   },
 
   render(page) {
+    const cats = [...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
     page.innerHTML = `
       <div class="page-header">
         <div class="page-header-title">Stock (${this.productos.length} productos)</div>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <div class="search-input-wrapper">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%;">
+          <div class="search-input-wrapper" style="flex:1; min-width:160px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
             </svg>
@@ -35,12 +36,13 @@ const Stock = {
               oninput="Stock.filter(this.value)">
           </div>
           <select id="stock-cat-filter" onchange="Stock.filterCat(this.value)"
-            style="padding:8px 12px; max-width:160px;">
+            style="padding:8px 12px; flex:1; min-width:120px; max-width:180px;">
             <option value="">Todas las categorías</option>
-            ${[...new Set(this.productos.map(p => p.categoria).filter(Boolean))]
-              .map(c => `<option value="${c}">${c}</option>`).join('')}
+            ${cats.map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
-          <button class="btn btn-primary btn-sm" onclick="Stock.openModal()">+ Nuevo producto</button>
+          <button class="btn btn-primary btn-sm" onclick="Stock.openModal()" style="white-space:nowrap;">
+            + Nuevo
+          </button>
         </div>
       </div>
 
@@ -70,25 +72,32 @@ const Stock = {
         </div>
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Código</th>
-              <th>Categoría</th>
-              <th>Precio venta</th>
-              <th>Precio costo</th>
-              <th>Stock</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="stock-tbody"></tbody>
-        </table>
+      <!-- Vista tabla (desktop) -->
+      <div class="stock-table-view">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Código</th>
+                <th>Categoría</th>
+                <th>Precio venta</th>
+                <th>Precio costo</th>
+                <th>Stock</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="stock-tbody"></tbody>
+          </table>
+        </div>
       </div>
+
+      <!-- Vista cards (mobile) -->
+      <div class="stock-cards-view" id="stock-cards-container"></div>
     `;
     this.renderTabla();
+    this.renderCards();
   },
 
   renderTabla() {
@@ -152,6 +161,84 @@ const Stock = {
     }).join('');
   },
 
+  renderCards() {
+    const container = document.getElementById('stock-cards-container');
+    if (!container) return;
+
+    if (this.filtrados.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state" style="padding:40px 0;">
+          <div class="empty-state-icon">🔍</div>
+          <h3>Sin resultados</h3>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = this.filtrados.map(p => {
+      const stock = p.unidad === 'kg' || p.unidad === 'g' ? null : (p.stock || 0);
+      const esPeso = p.unidad === 'kg' || p.unidad === 'g';
+      const stockColor = stock === null ? 'var(--blue)' : stock <= 0 ? 'var(--red)' : stock <= 5 ? 'var(--orange)' : 'var(--green-primary)';
+      const stockBadge = stock === null ? 'badge-blue' : stock <= 0 ? 'badge-red' : stock <= 5 ? 'badge-orange' : 'badge-green';
+      const stockLabel = stock === null ? 'Por peso' : stock <= 0 ? 'Sin stock' : stock <= 5 ? 'Stock bajo' : 'En stock';
+
+      return `
+        <div class="stock-card">
+          <div class="stock-card-top">
+            <div class="stock-card-info">
+              <div class="stock-card-name">${p.nombre}</div>
+              ${p.categoria ? `<span class="badge badge-muted" style="margin-top:4px;">${p.categoria}</span>` : ''}
+              ${p.codigo || p.codigoBarra ? `
+                <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:4px;">
+                  ${p.codigo || p.codigoBarra}
+                </div>` : ''}
+            </div>
+            <div class="stock-card-stock" style="color:${stockColor};">
+              ${esPeso ? `
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.7;">
+                  <path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+                  <line x1="12" y1="6" x2="12" y2="12"/><line x1="9" y1="9" x2="15" y2="9"/>
+                  <rect x="7" y="14" width="10" height="4" rx="1"/>
+                </svg>
+              ` : `<span class="stock-card-qty">${stock}</span>`}
+              <span class="stock-card-unit">${esPeso ? 'balanza' : 'uds'}</span>
+            </div>
+          </div>
+          <div class="stock-card-prices">
+            <div>
+              <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Venta</div>
+              <div style="font-size:15px; font-weight:700; font-family:var(--font-mono); color:var(--green-primary);">
+                ${formatPrice(p.precio)}${esPeso ? '/kg' : ''}
+              </div>
+            </div>
+            ${p.precioCosto ? `
+              <div>
+                <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Costo</div>
+                <div style="font-size:13px; font-weight:600; font-family:var(--font-mono); color:var(--text-secondary);">
+                  ${formatPrice(p.precioCosto)}
+                </div>
+              </div>` : ''}
+            <span class="badge ${stockBadge}" style="align-self:center; margin-left:auto;">${stockLabel}</span>
+          </div>
+          <div class="stock-card-actions">
+            <button class="btn btn-sm btn-secondary" style="flex:1;"
+              onclick="Stock.ajustarStock('${p.id}', '${p.nombre.replace(/'/g,"\\'")}', ${stock || 0})">
+              ± Stock
+            </button>
+            <button class="btn btn-sm btn-secondary" style="flex:1;"
+              onclick="Stock.openModal('${p.id}')">
+              ✏️ Editar
+            </button>
+            <button class="btn btn-sm btn-danger"
+              onclick="Stock.eliminar('${p.id}', '${p.nombre.replace(/'/g,"\\'")}')">
+              🗑
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+
   filter(q) {
     q = q.toLowerCase().trim();
     const cat = document.getElementById('stock-cat-filter')?.value || '';
@@ -161,6 +248,7 @@ const Stock = {
       return matchQ && matchC;
     });
     this.renderTabla();
+    this.renderCards();
   },
 
   filterCat(cat) {
