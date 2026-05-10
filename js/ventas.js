@@ -14,6 +14,11 @@ const Ventas = {
   cameraStream: null,
   cameraActive: false,
   torchOn: false,
+  _html5QrCode: null,
+  _qrTrackCaps: null,
+  _videoTrack: null,
+  _scanInterval: null,
+  _scanRAF: null,
   _balanzaGramos: '',
   _balanzaProd: null,
   _balanzaPrecio: 0,
@@ -575,7 +580,7 @@ const Ventas = {
   },
 
   // ════════════════════════════════════════════════════════
-  // CÁMARA con linterna (torch)
+  // CÁMARA — usa html5-qrcode (BarcodeDetector nativo + fallback)
   // ════════════════════════════════════════════════════════
   async toggleCamera() {
     this.cameraActive ? this.stopCamera() : await this.startCamera();
@@ -583,57 +588,107 @@ const Ventas = {
 
   async startCamera() {
     const container = document.getElementById('camera-container');
-    const video     = document.getElementById('camera-video');
     const btn       = document.getElementById('btn-camara');
     const status    = document.getElementById('camera-status');
-    if (!container || !video) return;
+    if (!container) return;
 
     try {
-      const constraints = {
-        video: {
-          facingMode: { ideal: 'environment' },
-          width:  { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      };
+      // Cargar html5-qrcode si no está disponible
+      if (!window.Html5Qrcode) {
+        if (status) status.textContent = 'Cargando lector...';
+        await this._loadHtml5QrCode();
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.cameraStream = stream;
+      if (!window.Html5Qrcode) {
+        showToast('No se pudo cargar el lector de códigos', 'error');
+        return;
+      }
+
+      // Limpiar instancia anterior si existe
+      if (this._html5QrCode) {
+        try { await this._html5QrCode.stop(); } catch(e) {}
+        this._html5QrCode = null;
+      }
+
       this.cameraActive = true;
-      this.torchOn = false;
-      video.srcObject = stream;
       container.style.display = 'block';
 
-      // Actualizar ícono botón cámara
       if (btn) {
         btn.style.borderColor = 'var(--green-primary)';
         btn.style.color       = 'var(--green-primary)';
         btn.style.background  = 'var(--green-muted)';
       }
 
-      // Verificar si el dispositivo soporta linterna
-      const track = stream.getVideoTracks()[0];
-      const caps  = track.getCapabilities?.() || {};
-      const torchBtn = document.getElementById('btn-torch');
-      if (torchBtn) {
-        // Mostrar solo si torch es soportado
-        torchBtn.style.display = caps.torch ? 'flex' : 'none';
+      // html5-qrcode necesita un div con id para renderizar
+      // Usamos el camera-container pero ocultamos su UI propia y mostramos la nuestra
+      const qrDivId = 'qr-reader-internal';
+      let qrDiv = document.getElementById(qrDivId);
+      if (!qrDiv) {
+        qrDiv = document.createElement('div');
+        qrDiv.id = qrDivId;
+        qrDiv.style.cssText = 'position:absolute;inset:0;z-index:1;';
+        container.insertBefore(qrDiv, container.firstChild);
       }
+      qrDiv.innerHTML = '';
 
-      // Guardar track para control de linterna
-      this._videoTrack = track;
+      const scanner = new Html5Qrcode(qrDivId, { verbose: false });
+      this._html5QrCode = scanner;
 
-      // Cargar ZXing si no está cargado
-      if (!window.ZXing) {
-        if (status) status.textContent = 'Cargando lector de códigos...';
-        await this.loadZXing();
-      }
+      let lastCode = '', lastTime = 0;
+
+      const onSuccess = (code) => {
+        const now = Date.now();
+        if (code === lastCode && now - lastTime < 2000) return;
+        lastCode = code;
+        lastTime = now;
+
+        if (status) status.textContent = `✓ ${code}`;
+        this._beep();
+        this.stopCamera();
+        setTimeout(() => this.addByCode(code), 80);
+      };
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 220, height: 90 },
+        aspectRatio: 1.7,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+        ]
+      };
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        config,
+        onSuccess,
+        () => {} // onError silencioso — es normal no leer cada frame
+      );
+
+      // Después de iniciar, intentar linterna
+      try {
+        const track = scanner?.getRunningTrackCameraCapabilities?.();
+        const torchBtn = document.getElementById('btn-torch');
+        if (torchBtn) {
+          const hasTorch = track?.torchFeature?.isSupported?.() ?? false;
+          torchBtn.style.display = hasTorch ? 'flex' : 'none';
+          this._qrTrackCaps = track;
+        }
+      } catch(e) {}
 
       if (status) status.textContent = 'Apuntá el código de barras al recuadro';
-      this.startCameraScan(video);
 
     } catch (e) {
       console.error('Camera error:', e);
+      this.cameraActive = false;
       if (e.name === 'NotAllowedError') {
         showToast('Permiso de cámara denegado. Habilitalo en la configuración del navegador.', 'error', 5000);
       } else {
@@ -642,112 +697,37 @@ const Ventas = {
     }
   },
 
-  // Encender/apagar linterna
-  async toggleTorch() {
-    if (!this._videoTrack) return;
-    const torchBtn  = document.getElementById('btn-torch');
-    const torchLabel= document.getElementById('torch-label');
-
-    try {
-      this.torchOn = !this.torchOn;
-      await this._videoTrack.applyConstraints({
-        advanced: [{ torch: this.torchOn }]
-      });
-
-      if (torchBtn) {
-        torchBtn.style.background  = this.torchOn
-          ? 'rgba(126,211,33,0.85)'
-          : 'rgba(0,0,0,0.75)';
-        torchBtn.style.borderColor = this.torchOn
-          ? 'var(--green-primary)'
-          : 'rgba(255,255,255,0.35)';
-        torchBtn.style.color = this.torchOn ? '#0D1117' : 'white';
-      }
-      if (torchLabel) torchLabel.textContent = this.torchOn ? 'ON' : 'OFF';
-
-    } catch (e) {
-      showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
-      this.torchOn = false;
-    }
-  },
-
-  loadZXing() {
-    return new Promise((resolve, reject) => {
-      if (window.ZXing) { resolve(); return; }
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
-      script.onload = resolve;
-      script.onerror = () => { console.warn('ZXing no cargó'); resolve(); };
-      document.head.appendChild(script);
+  _loadHtml5QrCode() {
+    return new Promise((resolve) => {
+      if (window.Html5Qrcode) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+      s.onload  = resolve;
+      s.onerror = () => { console.warn('html5-qrcode no cargó'); resolve(); };
+      document.head.appendChild(s);
     });
   },
 
-  startCameraScan(video) {
-    const canvas = document.getElementById('camera-canvas');
-    const status = document.getElementById('camera-status');
-
-    if (!window.ZXing) {
-      // Sin librería: no podemos escanear pero la cámara queda activa
-      if (status) status.textContent = 'Lector no disponible. Usá el escáner físico.';
-      return;
-    }
-
+  // Encender/apagar linterna
+  async toggleTorch() {
+    const torchBtn   = document.getElementById('btn-torch');
+    const torchLabel = document.getElementById('torch-label');
     try {
-      const hints   = new Map();
-      const formats = [
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.EAN_8,
-        ZXing.BarcodeFormat.CODE_128,
-        ZXing.BarcodeFormat.CODE_39,
-        ZXing.BarcodeFormat.QR_CODE,
-        ZXing.BarcodeFormat.UPC_A,
-        ZXing.BarcodeFormat.UPC_E,
-        ZXing.BarcodeFormat.DATA_MATRIX,
-        ZXing.BarcodeFormat.ITF,
-        ZXing.BarcodeFormat.CODABAR
-      ];
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-      const reader = new ZXing.MultiFormatReader();
-      reader.setHints(hints);
-      const ctx = canvas.getContext('2d');
-      let lastCode = '';
-      let lastTime = 0;
-
-      this._scanInterval = setInterval(() => {
-        if (!this.cameraActive || video.readyState < 2) return;
-        try {
-          canvas.width  = video.videoWidth  || 640;
-          canvas.height = video.videoHeight || 480;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-          const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-          const result    = reader.decode(bitmap);
-
-          if (result) {
-            const code = result.getText();
-            const now  = Date.now();
-            // Evitar doble lectura del mismo código en < 2 segundos
-            if (code === lastCode && now - lastTime < 2000) return;
-            lastCode = code;
-            lastTime = now;
-
-            if (status) status.textContent = `Código: ${code}`;
-            // Feedback sonoro (beep)
-            this._beep();
-            this.stopCamera();
-            this.addByCode(code);
-          }
-        } catch (e) {
-          // NotFoundException = normal, no hay código en el frame
-        }
-      }, 250);
-
-    } catch (e) {
-      console.error('ZXing scan error:', e);
+      this.torchOn = !this.torchOn;
+      if (this._qrTrackCaps) {
+        await this._qrTrackCaps.torchFeature.apply(this.torchOn);
+      } else if (this._videoTrack) {
+        await this._videoTrack.applyConstraints({ advanced: [{ torch: this.torchOn }] });
+      }
+      if (torchBtn) {
+        torchBtn.style.background  = this.torchOn ? 'rgba(126,211,33,0.85)' : 'rgba(0,0,0,0.75)';
+        torchBtn.style.borderColor = this.torchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.35)';
+        torchBtn.style.color       = this.torchOn ? '#0D1117' : 'white';
+      }
+      if (torchLabel) torchLabel.textContent = this.torchOn ? 'ON' : 'OFF';
+    } catch(e) {
+      showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
+      this.torchOn = false;
     }
   },
 
@@ -767,21 +747,22 @@ const Ventas = {
   },
 
   stopCamera() {
-    // Apagar linterna antes de cerrar
-    if (this._videoTrack && this.torchOn) {
-      this._videoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+    if (this._html5QrCode) {
+      this._html5QrCode.stop().catch(() => {});
+      this._html5QrCode = null;
     }
+    // limpieza legado por si quedó algo de versiones anteriores
     if (this.cameraStream) {
       this.cameraStream.getTracks().forEach(t => t.stop());
       this.cameraStream = null;
     }
-    if (this._scanInterval) {
-      clearInterval(this._scanInterval);
-      this._scanInterval = null;
-    }
+    if (this._scanInterval)  { clearInterval(this._scanInterval);   this._scanInterval = null; }
+    if (this._scanRAF)       { cancelAnimationFrame(this._scanRAF); this._scanRAF = null; }
+
     this.cameraActive = false;
-    this.torchOn = false;
-    this._videoTrack = null;
+    this.torchOn      = false;
+    this._videoTrack  = null;
+    this._qrTrackCaps = null;
 
     const container = document.getElementById('camera-container');
     const btn       = document.getElementById('btn-camara');
@@ -791,6 +772,20 @@ const Ventas = {
       btn.style.color       = 'var(--text-secondary)';
       btn.style.background  = 'var(--bg-card)';
     }
+  },
+  _beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 1200;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) { /* sin audio = ok */ }
   },
 
   // ════════════════════════════════════════════════════════
@@ -835,71 +830,60 @@ const Ventas = {
       </div>
 
       <div style="background:rgba(240,165,0,0.08); border:1px solid rgba(240,165,0,0.25);
-                  border-radius:var(--radius-md); padding:14px 16px; margin-bottom:16px;
+                  border-radius:var(--radius-md); padding:14px 16px; margin-bottom:20px;
                   display:flex; align-items:center; gap:10px;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" style="flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" style="flex-shrink:0;">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
         <div>
-          <div style="font-weight:700; font-size:13px; color:var(--orange);">Código no registrado</div>
-          <div style="font-size:13px; color:var(--text-secondary); margin-top:2px; font-family:var(--font-mono); word-break:break-all;">${code}</div>
+          <div style="font-weight:700; font-size:13px; color:var(--orange);">Código no encontrado en el sistema</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px; font-family:var(--font-mono);">${code}</div>
         </div>
       </div>
 
-      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px; line-height:1.6;">
-        Cargá los datos básicos para agregar al carrito ahora, o andá a <strong>Stock</strong> para registrarlo completo.
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:20px; line-height:1.6;">
+        ¿Querés registrar este producto ahora y agregarlo al carrito?
       </p>
 
       <!-- Formulario rápido -->
       <div class="form-group">
         <label>Nombre del producto *</label>
-        <input type="text" id="nf-nombre" placeholder="Ej: Galletitas Oreo" autofocus
-          style="font-size:16px; padding:12px 14px;">
+        <input type="text" id="nf-nombre" placeholder="Ej: Galletitas Oreo" autofocus>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div class="grid-2">
         <div class="form-group">
           <label>Precio de venta *</label>
           <div style="position:relative;">
             <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
                          color:var(--text-muted); font-weight:600;">$</span>
-            <input type="number" id="nf-precio" min="0" step="0.01" style="padding-left:26px; font-size:16px;"
-              inputmode="decimal">
+            <input type="number" id="nf-precio" min="0" step="0.01" style="padding-left:26px;">
           </div>
         </div>
         <div class="form-group">
           <label>Stock inicial</label>
-          <input type="number" id="nf-stock" value="1" min="0" style="font-size:16px;" inputmode="numeric">
+          <input type="number" id="nf-stock" value="1" min="0">
         </div>
       </div>
       <div class="form-group">
         <label>Categoría</label>
-        <input type="text" id="nf-cat" placeholder="Ej: Almacén" style="font-size:16px;">
+        <input type="text" id="nf-cat" placeholder="Ej: Almacén">
       </div>
 
       <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
-                  padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:16px;">
+                  padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:4px;">
         El código <strong style="font-family:var(--font-mono); color:var(--text-primary);">${code}</strong>
-        se guardará como código de barras.
+        se guardará como código de barras del producto.
       </div>
 
-      <div class="modal-footer" style="flex-direction:column; gap:8px;">
-        <div style="display:flex; gap:8px; width:100%;">
-          <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">Cancelar</button>
-          <button class="btn btn-primary" style="flex:2;"
-            onclick="Ventas.registrarYAgregar('${code}')">
-            ✓ Registrar y agregar
-          </button>
-        </div>
-        <button class="btn btn-ghost w-full" style="font-size:12px; color:var(--text-secondary);"
-          onclick="closeModal(); PS.navigate('stock');">
-          Ir a Stock para registrarlo completo →
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;"
+          onclick="Ventas.registrarYAgregar('${code}')">
+          Registrar y agregar al carrito
         </button>
       </div>
     `);
-
-    // Auto-focus en el nombre después del render
-    setTimeout(() => document.getElementById('nf-nombre')?.focus(), 100);
   },
 
   async registrarYAgregar(code) {

@@ -127,8 +127,8 @@ const PS = {
     this.updateTopbarUser();
     this.navigate('dashboard');
 
-    // Banner de aviso trial
-    if (this.trialDaysLeft !== null && this.trialDaysLeft <= 7) {
+    // Banner de aviso trial — siempre visible si está en trial
+    if (this.trialDaysLeft !== null) {
       setTimeout(() => this.showTrialBanner(), 800);
     }
 
@@ -197,34 +197,41 @@ const PS = {
   showTrialBanner() {
     if (document.getElementById('trial-banner')) return;
     const dias = this.trialDaysLeft;
-    const urgente = dias <= 2;
+    const urgente  = dias <= 2;
+    const warning  = dias <= 5;
+    const color = urgente ? 'rgba(248,81,73,0.97)' : warning ? 'rgba(240,165,0,0.97)' : 'rgba(88,166,255,0.97)';
+
+    let mensaje;
+    if (dias === 0)      mensaje = `<strong>⚠ Último día de prueba.</strong> Tu acceso vence hoy.`;
+    else if (dias === 1) mensaje = `<strong>⚠ Mañana vence tu prueba.</strong> Contactá al admin para no perder el acceso.`;
+    else if (urgente)    mensaje = `<strong>⚠ Te quedan ${dias} días de prueba.</strong> Coordiná tu plan antes de que venza.`;
+    else if (warning)    mensaje = `Tu prueba vence en <strong>${dias} días</strong>. Contactá al administrador.`;
+    else                 mensaje = `Período de prueba activo — <strong>${dias} días restantes</strong>.`;
+
     const banner = document.createElement('div');
     banner.id = 'trial-banner';
     banner.style.cssText = `
       position:fixed; top:0; left:0; right:0; z-index:9998;
-      background:${urgente ? 'rgba(248,81,73,0.96)' : 'rgba(240,165,0,0.96)'};
-      backdrop-filter:blur(8px); padding:10px 20px;
-      display:flex; align-items:center; justify-content:center; gap:12px;
+      background:${color}; backdrop-filter:blur(8px);
+      padding:10px 16px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
       font-family:var(--font); font-size:13px; font-weight:500; color:white;
       border-bottom:1px solid rgba(255,255,255,0.15);
     `;
     banner.innerHTML = `
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      <span>
-        ${urgente
-          ? `<strong>Atención:</strong> Tu plan trial vence ${dias === 1 ? 'mañana' : 'en ' + dias + ' días'}.`
-          : `Tu plan trial vence en <strong>${dias} días</strong>.`
-        }
-        Contactá al administrador para no perder el acceso.
-      </span>
+      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span style="line-height:1.4;">${mensaje}</span>
+      </div>
       <button onclick="document.getElementById('trial-banner').remove(); document.getElementById('main-content').style.paddingTop=''"
         style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer;
-               padding:4px 10px; border-radius:4px; font-size:12px; font-family:var(--font);">
-        Cerrar
+               padding:5px 11px; border-radius:4px; font-size:12px; font-family:var(--font);
+               white-space:nowrap; flex-shrink:0;">
+        ✕
       </button>
     `;
     document.getElementById('main-content').style.paddingTop = '42px';
