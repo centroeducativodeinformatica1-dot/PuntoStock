@@ -658,7 +658,6 @@ const Stock = {
           document.head.appendChild(s);
         });
       }
-
       if (!window.Html5Qrcode) {
         showToast('No se pudo cargar el lector de códigos', 'error');
         return;
@@ -671,6 +670,29 @@ const Stock = {
       }
 
       container.style.display = 'block';
+
+      // ── Detectar linterna ANTES con probe stream ────────────
+      let stockDeviceId = null;
+      try {
+        const probeStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        });
+        const vtrack = probeStream.getVideoTracks()[0];
+        const caps   = vtrack?.getCapabilities?.() || {};
+        stockDeviceId = vtrack?.getSettings?.()?.deviceId || null;
+
+        const torchBtn = document.getElementById('stock-torch-btn');
+        if (caps.torch) {
+          this._stockVideoTrack = vtrack;
+          if (torchBtn) torchBtn.style.display = 'flex';
+        } else {
+          this._stockVideoTrack = null;
+          if (torchBtn) torchBtn.style.display = 'none';
+        }
+        probeStream.getTracks().forEach(t => t.stop());
+      } catch(e) {
+        this._stockVideoTrack = null;
+      }
 
       // html5-qrcode necesita un div propio
       const qrDivId = 'stock-qr-reader-internal';
@@ -687,14 +709,11 @@ const Stock = {
       this._stockHtml5QrCode = scanner;
 
       let lastCode = '', lastTime = 0;
-
       const onSuccess = (code) => {
         const now = Date.now();
         if (code === lastCode && now - lastTime < 2000) return;
-        lastCode = code;
-        lastTime = now;
+        lastCode = code; lastTime = now;
 
-        // Poner el código en el input
         const input = document.getElementById('prod-barcode');
         if (input) {
           input.value = code;
@@ -702,7 +721,6 @@ const Stock = {
           input.style.boxShadow   = '0 0 0 3px var(--green-muted)';
           setTimeout(() => { input.style.borderColor = ''; input.style.boxShadow = ''; }, 2000);
         }
-
         if (status) status.textContent = `✓ ${code}`;
         this._beepStock();
         showToast(`Código escaneado: ${code}`, 'success', 2000);
@@ -714,34 +732,40 @@ const Stock = {
         qrbox: { width: 200, height: 70 },
         aspectRatio: 1.7,
         formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.CODABAR,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.EAN_13,  Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.QR_CODE,  Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.DATA_MATRIX,
         ]
       };
 
-      await scanner.start(
-        { facingMode: 'environment' },
-        config,
-        onSuccess,
-        () => {} // onError silencioso — normal no leer cada frame
-      );
+      const cameraConfig = stockDeviceId
+        ? { deviceId: { exact: stockDeviceId } }
+        : { facingMode: 'environment' };
 
-      // Linterna
+      await scanner.start(cameraConfig, config, onSuccess, () => {});
+
+      // Fallback: intentar capturar track del video que inyectó html5-qrcode
       try {
-        const track = scanner?.getRunningTrackCameraCapabilities?.();
-        const torchBtn = document.getElementById('stock-torch-btn');
-        if (torchBtn && track) {
-          const hasTorch = track?.torchFeature?.isSupported?.() ?? false;
-          torchBtn.style.display = hasTorch ? 'flex' : 'none';
-          this._stockTrackCaps = track;
+        await new Promise(r => setTimeout(r, 400));
+        if (!this._stockVideoTrack) {
+          const qrCaps = scanner?.getRunningTrackCameraCapabilities?.();
+          if (qrCaps?.torchFeature?.isSupported?.()) {
+            this._stockTrackCaps = qrCaps;
+            const torchBtn = document.getElementById('stock-torch-btn');
+            if (torchBtn) torchBtn.style.display = 'flex';
+          } else {
+            const vid = container.querySelector('video');
+            if (vid?.srcObject) {
+              const t = vid.srcObject.getVideoTracks()[0];
+              if (t?.getCapabilities?.()?.torch) {
+                this._stockVideoTrack = t;
+                const torchBtn = document.getElementById('stock-torch-btn');
+                if (torchBtn) torchBtn.style.display = 'flex';
+              }
+            }
+          }
         }
       } catch(e) {}
 
@@ -762,8 +786,12 @@ const Stock = {
     const torchBtn = document.getElementById('stock-torch-btn');
     this._stockTorchOn = !this._stockTorchOn;
     try {
-      if (this._stockTrackCaps) {
+      if (this._stockTrackCaps?.torchFeature?.isSupported?.()) {
         await this._stockTrackCaps.torchFeature.apply(this._stockTorchOn);
+      } else if (this._stockVideoTrack) {
+        await this._stockVideoTrack.applyConstraints({ advanced: [{ torch: this._stockTorchOn }] });
+      } else {
+        throw new Error('no torch');
       }
       if (torchBtn) {
         torchBtn.style.background   = this._stockTorchOn ? 'rgba(126,211,33,0.3)' : 'rgba(0,0,0,0.65)';

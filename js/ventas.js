@@ -601,29 +601,60 @@ const Ventas = {
         if (status) status.textContent = 'Cargando lector...';
         await this._loadHtml5QrCode();
       }
-
       if (!window.Html5Qrcode) {
         showToast('No se pudo cargar el lector de códigos', 'error');
         return;
       }
 
-      // Limpiar instancia anterior si existe
+      // Limpiar instancia anterior
       if (this._html5QrCode) {
         try { await this._html5QrCode.stop(); } catch(e) {}
         this._html5QrCode = null;
       }
+      // Cerrar stream previo de detección de linterna
+      if (this._probeStream) {
+        this._probeStream.getTracks().forEach(t => t.stop());
+        this._probeStream = null;
+      }
 
       this.cameraActive = true;
       container.style.display = 'block';
-
       if (btn) {
         btn.style.borderColor = 'var(--green-primary)';
         btn.style.color       = 'var(--green-primary)';
         btn.style.background  = 'var(--green-muted)';
       }
 
-      // html5-qrcode necesita un div con id para renderizar
-      // Usamos el camera-container pero ocultamos su UI propia y mostramos la nuestra
+      // ── Detectar linterna ANTES de iniciar el scanner ──────
+      // Abrimos el stream nosotros para leer las capabilities
+      let deviceId = null;
+      try {
+        const probeStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        });
+        this._probeStream = probeStream;
+        const vtrack = probeStream.getVideoTracks()[0];
+        const caps   = vtrack?.getCapabilities?.() || {};
+        deviceId     = vtrack?.getSettings?.()?.deviceId || null;
+
+        const torchBtn = document.getElementById('btn-torch');
+        if (caps.torch) {
+          // Linterna soportada — guardamos el track para usarlo
+          this._videoTrack = vtrack;
+          if (torchBtn) torchBtn.style.display = 'flex';
+        } else {
+          this._videoTrack = null;
+          if (torchBtn) torchBtn.style.display = 'none';
+        }
+        // Cerramos el probe stream — html5-qrcode abrirá el suyo
+        probeStream.getTracks().forEach(t => t.stop());
+        this._probeStream = null;
+      } catch(e) {
+        // Sin acceso a probe = sin linterna, seguimos igual
+        this._videoTrack = null;
+      }
+
+      // ── Iniciar html5-qrcode ───────────────────────────────
       const qrDivId = 'qr-reader-internal';
       let qrDiv = document.getElementById(qrDivId);
       if (!qrDiv) {
@@ -638,13 +669,10 @@ const Ventas = {
       this._html5QrCode = scanner;
 
       let lastCode = '', lastTime = 0;
-
       const onSuccess = (code) => {
         const now = Date.now();
         if (code === lastCode && now - lastTime < 2000) return;
-        lastCode = code;
-        lastTime = now;
-
+        lastCode = code; lastTime = now;
         if (status) status.textContent = `✓ ${code}`;
         this._beep();
         this.stopCamera();
@@ -656,57 +684,36 @@ const Ventas = {
         qrbox: { width: 220, height: 90 },
         aspectRatio: 1.7,
         formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.CODABAR,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.EAN_13,  Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.QR_CODE,  Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.DATA_MATRIX,
         ]
       };
 
-      await scanner.start(
-        { facingMode: 'environment' },
-        config,
-        onSuccess,
-        () => {} // onError silencioso — es normal no leer cada frame
-      );
+      // Usar deviceId específico si lo tenemos, sino facingMode
+      const cameraConfig = deviceId
+        ? { deviceId: { exact: deviceId } }
+        : { facingMode: 'environment' };
 
-      // Después de iniciar, intentar linterna con dos métodos
+      await scanner.start(cameraConfig, config, onSuccess, () => {});
+
+      // Tras iniciar, intentar capturar el track interno del scanner
+      // para que toggleTorch pueda encender la linterna por su propio stream
       try {
-        await new Promise(r => setTimeout(r, 600)); // dar tiempo al stream a iniciar
-        const torchBtn = document.getElementById('btn-torch');
-        let hasTorch = false;
-
-        // Método 1: html5-qrcode API
-        try {
-          const track = scanner?.getRunningTrackCameraCapabilities?.();
-          if (track?.torchFeature?.isSupported?.()) {
-            hasTorch = true;
-            this._qrTrackCaps = track;
+        await new Promise(r => setTimeout(r, 400));
+        const qrCaps = scanner?.getRunningTrackCameraCapabilities?.();
+        if (qrCaps?.torchFeature?.isSupported?.()) {
+          this._qrTrackCaps = qrCaps;
+        } else {
+          // Fallback: buscar el video que inyectó html5-qrcode
+          const vid = container.querySelector('video');
+          if (vid?.srcObject) {
+            const t = vid.srcObject.getVideoTracks()[0];
+            if (t?.getCapabilities?.()?.torch) this._videoTrack = t;
           }
-        } catch(e) {}
-
-        // Método 2: fallback directo al MediaStreamTrack
-        if (!hasTorch) {
-          try {
-            const videoEl = document.querySelector('#qr-reader-internal video');
-            if (videoEl?.srcObject) {
-              const vtrack = videoEl.srcObject.getVideoTracks()[0];
-              const caps = vtrack?.getCapabilities?.() || {};
-              if (caps.torch) {
-                hasTorch = true;
-                this._videoTrack = vtrack;
-              }
-            }
-          } catch(e) {}
         }
-
-        if (torchBtn) torchBtn.style.display = hasTorch ? 'flex' : 'none';
       } catch(e) {}
 
       if (status) status.textContent = 'Apuntá el código de barras al recuadro';
