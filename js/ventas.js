@@ -121,8 +121,11 @@ const Ventas = {
                        color:white; width:48px; height:48px; border-radius:12px;
                        cursor:pointer; display:none; flex-direction:column;
                        align-items:center; justify-content:center; gap:2px;
-                       transition:all 0.2s; font-size:20px; line-height:1;">
-                💡
+                       transition:all 0.2s; line-height:1;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18h6"/><path d="M10 22h4"/>
+                  <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+                </svg>
                 <span id="torch-label" style="font-size:9px; font-weight:800; letter-spacing:0.5px;">OFF</span>
               </button>
               <!-- Cerrar cámara -->
@@ -733,20 +736,23 @@ const Ventas = {
 
   _beep() {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 1200;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.15);
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+      const now  = ctx.currentTime;
+      // Pip doble estilo supermercado: dos tonos cortos y limpios
+      [0, 0.12].forEach(offset => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 1800;
+        gain.gain.setValueAtTime(0, now + offset);
+        gain.gain.linearRampToValueAtTime(0.35, now + offset + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.09);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.1);
+      });
     } catch (e) { /* sin audio = ok */ }
   },
-
-  stopCamera() {
     if (this._html5QrCode) {
       this._html5QrCode.stop().catch(() => {});
       this._html5QrCode = null;
@@ -773,21 +779,6 @@ const Ventas = {
       btn.style.background  = 'var(--bg-card)';
     }
   },
-  _beep() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 1200;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.15);
-    } catch (e) { /* sin audio = ok */ }
-  },
-
   // ════════════════════════════════════════════════════════
   // CARRITO
   // ════════════════════════════════════════════════════════

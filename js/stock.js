@@ -1,757 +1,1181 @@
 // ============================================================
-// PUNTOSTOCK — Módulo de Stock
+// PUNTOSTOCK — Módulo de Ventas (POS) v3
+// - Balanza solo en GRAMOS
+// - Cámara con linterna (torch) para mobile
+// - Teclado físico + escáner + pantalla táctil funcionando juntos
 // ============================================================
 
-const Stock = {
+const Ventas = {
   productos: [],
-  filtrados: [],
+  productosFiltrados: [],
+  cart: [],
+  scanBuffer: '',
+  scanTimer: null,
+  cameraStream: null,
+  cameraActive: false,
+  torchOn: false,
+  _html5QrCode: null,
+  _qrTrackCaps: null,
+  _videoTrack: null,
+  _scanInterval: null,
+  _scanRAF: null,
+  _balanzaGramos: '',
+  _balanzaProd: null,
+  _balanzaPrecio: 0,
 
+  // ── Helper: producto por peso ─────────────────────────────
+  _esPeso(p) {
+    return p.unidad === 'kg' || p.unidad === 'g';
+  },
+
+  // ── Cargar página ─────────────────────────────────────────
   async load() {
-    const page = document.getElementById('page-stock');
-    page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando stock...</div>`;
-
+    const page = document.getElementById('page-ventas');
+    page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando productos...</div>`;
     try {
       const snap = await db.collection('businesses').doc(PS.businessId)
-        .collection('productos').orderBy('nombre').get();
+        .collection('productos').where('activo', '==', true).get();
       this.productos = [];
       snap.forEach(d => this.productos.push({ id: d.id, ...d.data() }));
-      this.filtrados = [...this.productos];
+      this.productosFiltrados = [...this.productos];
+      this.cart = [];
       this.render(page);
+      this.initScanner();
     } catch (e) {
-      page.innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><h3>Error</h3><p>${e.message}</p></div>`;
+      page.innerHTML = `<div class="empty-state"><h3>Error al cargar</h3><p>${e.message}</p></div>`;
     }
   },
 
+  // ── Render principal ──────────────────────────────────────
   render(page) {
-    const cats = [...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
     page.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-title">Stock (${this.productos.length} productos)</div>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%;">
-          <div class="search-input-wrapper" style="flex:1; min-width:160px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input type="text" id="stock-search" placeholder="Buscar producto..."
-              oninput="Stock.filter(this.value)">
+      <div class="pos-layout">
+        <div class="pos-left">
+
+          <!-- Barra búsqueda + botones -->
+          <div style="display:flex; gap:8px; align-items:center;">
+            <div class="pos-search-bar" style="flex:1;">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input type="text" id="pos-search" placeholder="Buscar por nombre o código..."
+                oninput="Ventas.filter(this.value)">
+            </div>
+
+            <!-- Botón cámara -->
+            <button id="btn-camara" onclick="Ventas.toggleCamera()" title="Escanear con cámara"
+              style="width:44px; height:44px; background:var(--bg-card); border:1px solid var(--border);
+                     border-radius:var(--radius-md); cursor:pointer; display:flex; align-items:center;
+                     justify-content:center; flex-shrink:0; transition:all 0.2s; color:var(--text-secondary);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
+
+            <!-- Botón balanza -->
+            <button onclick="Ventas.abrirBalanza()" title="Calculadora de balanza"
+              style="width:44px; height:44px; background:var(--bg-card); border:1px solid var(--border);
+                     border-radius:var(--radius-md); cursor:pointer; display:flex; align-items:center;
+                     justify-content:center; flex-shrink:0; transition:all 0.2s; color:var(--text-secondary);"
+              onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
+              onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+                <line x1="12" y1="6" x2="12" y2="12"/><line x1="9" y1="9" x2="15" y2="9"/>
+                <rect x="7" y="14" width="10" height="4" rx="1"/>
+              </svg>
+            </button>
           </div>
-          <select id="stock-cat-filter" onchange="Stock.filterCat(this.value)"
-            style="padding:8px 12px; flex:1; min-width:120px; max-width:180px;">
-            <option value="">Todas las categorías</option>
-            ${cats.map(c => `<option value="${c}">${c}</option>`).join('')}
-          </select>
-          <button class="btn btn-primary btn-sm" onclick="Stock.openModal()" style="white-space:nowrap;">
-            + Nuevo
-          </button>
-        </div>
-      </div>
 
-      <!-- Resumen stock -->
-      <div class="stat-grid" style="margin-bottom:20px;">
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Total productos</div>
-          <div class="stat-value" style="font-size:22px;">${this.productos.length}</div>
-        </div>
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Valor total stock</div>
-          <div class="stat-value green" style="font-size:22px;">
-            ${formatPrice(this.productos.reduce((s,p) => s + (p.precio||0)*(p.stock||0), 0))}
-          </div>
-        </div>
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Stock bajo (≤5)</div>
-          <div class="stat-value" style="font-size:22px; color:var(--orange);">
-            ${this.productos.filter(p => (p.stock||0) <= 5).length}
-          </div>
-        </div>
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Sin stock</div>
-          <div class="stat-value" style="font-size:22px; color:var(--red);">
-            ${this.productos.filter(p => (p.stock||0) <= 0).length}
-          </div>
-        </div>
-      </div>
+          <!-- Visor de cámara -->
+          <div id="camera-container" style="display:none; position:relative; border-radius:var(--radius-md);
+               overflow:hidden; border:2px solid var(--green-primary); background:#000;">
+            <video id="camera-video" autoplay playsinline muted
+              style="width:100%; max-height:260px; object-fit:cover; display:block;"></video>
+            <canvas id="camera-canvas" style="display:none;"></canvas>
 
-      <!-- Vista tabla (desktop) -->
-      <div class="stock-table-view">
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Código</th>
-                <th>Categoría</th>
-                <th>Precio venta</th>
-                <th>Precio costo</th>
-                <th>Stock</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="stock-tbody"></tbody>
-          </table>
-        </div>
-      </div>
+            <!-- Marco de escaneo -->
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;">
+              <div style="position:relative; width:220px; height:90px;">
+                <div style="position:absolute; inset:0; box-shadow:0 0 0 9999px rgba(0,0,0,0.45); border-radius:4px;"></div>
+                <div style="position:absolute; inset:0; border:2px solid var(--green-primary); border-radius:4px;
+                             animation: scanPulse 1.5s ease-in-out infinite;"></div>
+                <!-- Esquinas -->
+                <div style="position:absolute; top:-2px; left:-2px; width:20px; height:20px; border-top:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
+                <div style="position:absolute; top:-2px; right:-2px; width:20px; height:20px; border-top:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
+                <div style="position:absolute; bottom:-2px; left:-2px; width:20px; height:20px; border-bottom:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
+                <div style="position:absolute; bottom:-2px; right:-2px; width:20px; height:20px; border-bottom:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
+                <!-- Línea de escaneo animada -->
+                <div id="scan-line" style="position:absolute; left:0; right:0; height:2px;
+                     background:linear-gradient(90deg, transparent, var(--green-primary), transparent);
+                     animation:scanLine 1.5s ease-in-out infinite;"></div>
+              </div>
+            </div>
 
-      <!-- Vista cards (mobile) -->
-      <div class="stock-cards-view" id="stock-cards-container"></div>
-    `;
-    this.renderTabla();
-    this.renderCards();
-  },
-
-  renderTabla() {
-    const tbody = document.getElementById('stock-tbody');
-    if (!tbody) return;
-
-    if (this.filtrados.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="8">
-          <div class="empty-state" style="padding:40px 0;">
-            <div class="empty-state-icon">🔍</div>
-            <h3>Sin resultados</h3>
-          </div>
-        </td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = this.filtrados.map(p => {
-      const stock = p.stock || 0;
-      const stockClass = stock <= 0 ? 'td-red' : stock <= 5 ? '' : 'td-green';
-      const stockBadge = stock <= 0 ? 'badge-red' : stock <= 5 ? 'badge-orange' : 'badge-green';
-      const stockLabel = stock <= 0 ? 'Sin stock' : stock <= 5 ? 'Stock bajo' : 'En stock';
-
-      return `
-        <tr>
-          <td>
-            <div style="font-weight:600;">${p.nombre}</div>
-            ${p.descripcion ? `<div style="font-size:11px; color:var(--text-muted);">${p.descripcion}</div>` : ''}
-          </td>
-          <td class="td-mono td-muted">${p.codigo || p.codigoBarra || '—'}</td>
-          <td><span class="badge badge-muted">${p.categoria || 'Sin cat.'}</span></td>
-          <td class="td-mono td-green">${formatPrice(p.precio)}${p.unidad === 'kg' || p.unidad === 'g' ? '/kg' : ''}</td>
-          <td class="td-mono td-muted">${p.precioCosto ? formatPrice(p.precioCosto) : '—'}</td>
-          <td>
-            ${p.unidad === 'kg' || p.unidad === 'g'
-              ? '<span class="badge badge-blue" style="font-size:10px;">Por peso / kg</span>'
-              : `<span class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</span>`
-            }
-          </td>
-          <td>
-            ${p.unidad === 'kg' || p.unidad === 'g'
-              ? '<span class="badge badge-green">Con balanza</span>'
-              : `<span class="badge ${stockBadge}">${stockLabel}</span>`
-            }
-          </td>
-          <td>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})">
-                ± Stock
+            <!-- Controles de cámara -->
+            <div style="position:absolute; top:8px; right:8px; display:flex; gap:6px;">
+              <!-- Botón linterna -->
+              <button id="btn-torch" onclick="Ventas.toggleTorch()"
+                style="background:rgba(0,0,0,0.75); border:2px solid rgba(255,255,255,0.35);
+                       color:white; width:48px; height:48px; border-radius:12px;
+                       cursor:pointer; display:none; flex-direction:column;
+                       align-items:center; justify-content:center; gap:2px;
+                       transition:all 0.2s; line-height:1;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18h6"/><path d="M10 22h4"/>
+                  <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+                </svg>
+                <span id="torch-label" style="font-size:9px; font-weight:800; letter-spacing:0.5px;">OFF</span>
               </button>
-              <button class="btn btn-sm btn-secondary" onclick="Stock.openModal('${p.id}')">
-                
-              </button>
-              <button class="btn btn-sm btn-danger" onclick="Stock.eliminar('${p.id}', '${p.nombre}')">
-                
+              <!-- Cerrar cámara -->
+              <button onclick="Ventas.stopCamera()"
+                style="background:rgba(0,0,0,0.75); border:2px solid rgba(255,255,255,0.35);
+                       color:white; width:48px; height:48px; border-radius:12px;
+                       cursor:pointer; display:flex; align-items:center; justify-content:center;
+                       font-size:20px; transition:all 0.2s;"
+                onmouseenter="this.style.background='rgba(248,81,73,0.8)'"
+                onmouseleave="this.style.background='rgba(0,0,0,0.75)'">
+                ✕
               </button>
             </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+
+            <!-- Status -->
+            <div id="camera-status"
+              style="position:absolute; bottom:0; left:0; right:0; padding:8px 12px;
+                     background:linear-gradient(transparent, rgba(0,0,0,0.8)); text-align:center;
+                     font-size:12px; font-weight:600; color:white;">
+              Apuntá el código de barras al recuadro
+            </div>
+          </div>
+
+          <!-- Animaciones CSS para la cámara -->
+          <style>
+            @keyframes scanLine {
+              0%   { top: 0; opacity: 1; }
+              50%  { top: calc(100% - 2px); opacity: 1; }
+              100% { top: 0; opacity: 1; }
+            }
+            @keyframes scanPulse {
+              0%, 100% { border-color: var(--green-primary); }
+              50%       { border-color: var(--green-bright); box-shadow: 0 0 8px rgba(126,211,33,0.4); }
+            }
+          </style>
+
+          <!-- Categorías -->
+          <div id="pos-cats" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+
+          <!-- Grid productos -->
+          <div class="pos-products" id="pos-products-grid"></div>
+        </div>
+
+        <!-- RIGHT: carrito -->
+        <div class="pos-right">
+          <div class="cart-header">
+            <div class="cart-title">
+              <span style="display:flex; align-items:center; gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <path d="M16 10a4 4 0 0 1-8 0"/>
+                </svg>
+                Carrito
+              </span>
+              <span class="cart-count" id="cart-count">0</span>
+            </div>
+          </div>
+
+          <div class="cart-items" id="cart-items">
+            <div class="cart-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:8px;">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+              <span>El carrito está vacío</span>
+              <span style="font-size:11px;">Buscá, escaneá o usá la cámara</span>
+            </div>
+          </div>
+
+          <div class="cart-totals">
+            <div class="total-row">
+              <span>Subtotal</span><span id="cart-subtotal">$0</span>
+            </div>
+            <div class="total-row">
+              <span>Descuento</span>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="number" id="cart-descuento" min="0" max="100" value="0"
+                  style="width:50px; padding:3px 6px; text-align:center; font-size:12px;"
+                  oninput="Ventas.updateTotals()"> %
+              </div>
+            </div>
+            <div class="total-row main">
+              <span>TOTAL</span><span id="cart-total">$0</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
+              ${['Efectivo','Tarjeta','Transferencia','Cuenta corriente'].map(m => `
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;
+                              padding:8px; border:1px solid var(--border); border-radius:6px;
+                              font-size:12px; font-weight:500; transition:all 0.15s;"
+                       onclick="Ventas.selectPago('${m}')">
+                  <input type="radio" name="pago" value="${m}" style="accent-color:var(--green-primary);">
+                  ${m}
+                </label>
+              `).join('')}
+            </div>
+
+            <div id="efectivo-section" style="display:none; margin-bottom:10px;">
+              <label>Monto recibido</label>
+              <input type="number" id="monto-recibido" style="margin-top:4px;" oninput="Ventas.calcVuelto()">
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:12px;">
+                <span style="color:var(--text-secondary);">Vuelto:</span>
+                <span id="vuelto-val" style="font-family:var(--font-mono); font-weight:700; color:var(--green-primary);">$0</span>
+              </div>
+            </div>
+
+            <button class="cobrar-btn" id="cobrar-btn" onclick="Ventas.cobrar()" disabled>Cobrar</button>
+            <button class="btn btn-ghost w-full mt-8" onclick="Ventas.clearCart()" style="font-size:12px;">
+              Vaciar carrito
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.renderCategorias();
+    this.renderProductos();
+    this.renderCart();
+    setTimeout(() => document.getElementById('pos-search')?.focus(), 100);
   },
 
-  renderCards() {
-    const container = document.getElementById('stock-cards-container');
-    if (!container) return;
+  // ── Categorías ────────────────────────────────────────────
+  renderCategorias() {
+    const cats = ['Todos', ...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
+    const el = document.getElementById('pos-cats');
+    if (!el) return;
+    el.innerHTML = cats.map((c, i) => `
+      <button class="btn btn-sm ${i === 0 ? 'btn-primary' : 'btn-secondary'}"
+        onclick="Ventas.filterCat('${c}', this)">${c}</button>
+    `).join('');
+  },
 
-    if (this.filtrados.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state" style="padding:40px 0;">
-          <div class="empty-state-icon">🔍</div>
+  filterCat(cat, btn) {
+    document.querySelectorAll('#pos-cats .btn').forEach(b =>
+      b.className = b === btn ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-secondary'
+    );
+    this.productosFiltrados = cat === 'Todos'
+      ? [...this.productos]
+      : this.productos.filter(p => p.categoria === cat);
+    document.getElementById('pos-search').value = '';
+    this.renderProductos();
+  },
+
+  filter(q) {
+    q = q.toLowerCase().trim();
+    this.productosFiltrados = q
+      ? this.productos.filter(p =>
+          p.nombre?.toLowerCase().includes(q) ||
+          p.codigo?.toLowerCase().includes(q) ||
+          p.codigoBarra?.toLowerCase().includes(q) ||
+          p.categoria?.toLowerCase().includes(q))
+      : [...this.productos];
+    this.renderProductos();
+  },
+
+  // ── Productos grid ────────────────────────────────────────
+  renderProductos() {
+    const grid = document.getElementById('pos-products-grid');
+    if (!grid) return;
+
+    if (this.productosFiltrados.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1;">
+          <div class="empty-state-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+          </div>
           <h3>Sin resultados</h3>
         </div>`;
       return;
     }
 
-    container.innerHTML = this.filtrados.map(p => {
-      const stock = p.unidad === 'kg' || p.unidad === 'g' ? null : (p.stock || 0);
-      const esPeso = p.unidad === 'kg' || p.unidad === 'g';
-      const stockColor = stock === null ? 'var(--blue)' : stock <= 0 ? 'var(--red)' : stock <= 5 ? 'var(--orange)' : 'var(--green-primary)';
-      const stockBadge = stock === null ? 'badge-blue' : stock <= 0 ? 'badge-red' : stock <= 5 ? 'badge-orange' : 'badge-green';
-      const stockLabel = stock === null ? 'Por peso' : stock <= 0 ? 'Sin stock' : stock <= 5 ? 'Stock bajo' : 'En stock';
+    grid.innerHTML = this.productosFiltrados.map(p => {
+      const esPeso  = this._esPeso(p);
+      const noStock = !esPeso && (p.stock || 0) <= 0;
+      const onclick = noStock ? '' : esPeso
+        ? `Ventas.abrirBalanza('${p.id}')`
+        : `Ventas.addToCart('${p.id}')`;
 
       return `
-        <div class="stock-card">
-          <div class="stock-card-top">
-            <div class="stock-card-info">
-              <div class="stock-card-name">${p.nombre}</div>
-              ${p.categoria ? `<span class="badge badge-muted" style="margin-top:4px;">${p.categoria}</span>` : ''}
-              ${p.codigo || p.codigoBarra ? `
-                <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:4px;">
-                  ${p.codigo || p.codigoBarra}
-                </div>` : ''}
-            </div>
-            <div class="stock-card-stock" style="color:${stockColor};">
-              ${esPeso ? `
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.7;">
-                  <path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
-                  <line x1="12" y1="6" x2="12" y2="12"/><line x1="9" y1="9" x2="15" y2="9"/>
-                  <rect x="7" y="14" width="10" height="4" rx="1"/>
-                </svg>
-              ` : `<span class="stock-card-qty">${stock}</span>`}
-              <span class="stock-card-unit">${esPeso ? 'balanza' : 'uds'}</span>
-            </div>
+        <div class="product-card ${noStock ? 'no-stock' : ''}"
+             onclick="${onclick}" title="${p.nombre}">
+          <div class="product-icon" style="margin:0 auto 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              ${this._getIcon(p.categoria || '')}
+            </svg>
           </div>
-          <div class="stock-card-prices">
-            <div>
-              <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Venta</div>
-              <div style="font-size:15px; font-weight:700; font-family:var(--font-mono); color:var(--green-primary);">
-                ${formatPrice(p.precio)}${esPeso ? '/kg' : ''}
-              </div>
-            </div>
-            ${p.precioCosto ? `
-              <div>
-                <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Costo</div>
-                <div style="font-size:13px; font-weight:600; font-family:var(--font-mono); color:var(--text-secondary);">
-                  ${formatPrice(p.precioCosto)}
-                </div>
-              </div>` : ''}
-            <span class="badge ${stockBadge}" style="align-self:center; margin-left:auto;">${stockLabel}</span>
+          <div class="product-name">${p.nombre}</div>
+          <div class="product-price">
+            ${formatPrice(p.precio)}${esPeso ? '/kg' : ''}
           </div>
-          <div class="stock-card-actions">
-            <button class="btn btn-sm btn-secondary" style="flex:1;"
-              onclick="Stock.ajustarStock('${p.id}', '${p.nombre.replace(/'/g,"\\'")}', ${stock || 0})">
-              ± Stock
-            </button>
-            <button class="btn btn-sm btn-secondary" style="flex:1;"
-              onclick="Stock.openModal('${p.id}')">
-              ✏️ Editar
-            </button>
-            <button class="btn btn-sm btn-danger"
-              onclick="Stock.eliminar('${p.id}', '${p.nombre.replace(/'/g,"\\'")}')">
-              🗑
-            </button>
+          <div class="product-stock-label">
+            ${noStock ? 'Sin stock' : esPeso ? 'Por peso' : `${p.stock} en stock`}
           </div>
+          ${esPeso ? `<div style="margin-top:4px;">
+            <span style="font-size:9px; background:rgba(126,211,33,0.15); color:var(--green-primary);
+                         padding:2px 7px; border-radius:4px; font-weight:700; letter-spacing:0.5px;">
+              BALANZA
+            </span>
+          </div>` : ''}
         </div>
       `;
     }).join('');
   },
 
-
-  filter(q) {
-    q = q.toLowerCase().trim();
-    const cat = document.getElementById('stock-cat-filter')?.value || '';
-    this.filtrados = this.productos.filter(p => {
-      const matchQ = !q || p.nombre?.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q) || p.codigoBarra?.toLowerCase().includes(q);
-      const matchC = !cat || p.categoria === cat;
-      return matchQ && matchC;
-    });
-    this.renderTabla();
-    this.renderCards();
+  _getIcon(cat) {
+    cat = cat.toLowerCase();
+    if (cat.includes('ropa') || cat.includes('indument'))
+      return '<path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>';
+    if (cat.includes('fiambre') || cat.includes('queso') || cat.includes('carne') || cat.includes('deli'))
+      return '<path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><line x1="12" y1="6" x2="12" y2="12"/><line x1="9" y1="9" x2="15" y2="9"/><rect x="7" y="14" width="10" height="4" rx="1"/>';
+    if (cat.includes('bebida'))
+      return '<path d="M8 2h8l1 7H7L8 2z"/><path d="M7 9c0 5 2 9 5 9s5-4 5-9"/>';
+    if (cat.includes('electro') || cat.includes('tecno'))
+      return '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>';
+    return '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>';
   },
 
-  filterCat(cat) {
-    const q = document.getElementById('stock-search')?.value || '';
-    this.filter(q);
-  },
-
-  openModal(id) {
-    const prod = id ? this.productos.find(p => p.id === id) : null;
-    const cats = [...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
-    const esPeso = prod?.unidad === 'kg' || prod?.unidad === 'g';
+  // ════════════════════════════════════════════════════════
+  // CALCULADORA DE BALANZA — solo en GRAMOS
+  // ════════════════════════════════════════════════════════
+  abrirBalanza(prodId) {
+    const prodsPeso = this.productos.filter(p => this._esPeso(p));
+    const lista = prodsPeso.length > 0 ? prodsPeso : this.productos;
+    const opciones = lista.map(p =>
+      `<option value="${p.id}" ${p.id === prodId ? 'selected' : ''}>
+        ${p.nombre} — ${formatPrice(p.precio)}/kg
+      </option>`
+    ).join('');
 
     openModal(`
       <div class="modal-header">
-        <h3 class="modal-title">${prod ? 'Editar producto' : '+ Nuevo producto'}</h3>
+        <h3 class="modal-title" style="display:flex; align-items:center; gap:10px;">
+          <div style="width:36px; height:36px; background:var(--green-muted); border-radius:8px;
+                      display:flex; align-items:center; justify-content:center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="1.8">
+              <path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+              <line x1="12" y1="6" x2="12" y2="12"/><line x1="9" y1="9" x2="15" y2="9"/>
+              <rect x="7" y="14" width="10" height="4" rx="1"/>
+            </svg>
+          </div>
+          Calculadora de balanza
+        </h3>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
 
-      <!-- Selector de unidad primero, para que el usuario elija antes de ver los campos -->
-      <div class="form-group" style="margin-bottom:20px;">
-        <label>Tipo de producto</label>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
-          <label id="tipo-unidad-label" onclick="Stock.setTipo('unidad')"
-            style="display:flex; align-items:center; gap:10px; padding:12px 14px;
-                   border:2px solid ${!esPeso ? 'var(--green-primary)' : 'var(--border)'};
-                   border-radius:var(--radius-md); cursor:pointer; transition:all 0.2s;
-                   background:${!esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
-            <input type="radio" name="prod-tipo" value="unidad" ${!esPeso ? 'checked' : ''}
-              style="accent-color:var(--green-primary); width:16px; height:16px;">
-            <div>
-              <div style="font-weight:700; font-size:13px; color:${!esPeso ? 'var(--green-primary)' : 'var(--text-primary)'};">Por unidad</div>
-              <div style="font-size:11px; color:var(--text-secondary);">Ropa, calzado, electro...</div>
-            </div>
-          </label>
-          <label id="tipo-peso-label" onclick="Stock.setTipo('kg')"
-            style="display:flex; align-items:center; gap:10px; padding:12px 14px;
-                   border:2px solid ${esPeso ? 'var(--green-primary)' : 'var(--border)'};
-                   border-radius:var(--radius-md); cursor:pointer; transition:all 0.2s;
-                   background:${esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
-            <input type="radio" name="prod-tipo" value="kg" ${esPeso ? 'checked' : ''}
-              style="accent-color:var(--green-primary); width:16px; height:16px;">
-            <div>
-              <div style="font-weight:700; font-size:13px; color:${esPeso ? 'var(--green-primary)' : 'var(--text-primary)'};">Por peso / balanza</div>
-              <div style="font-size:11px; color:var(--text-secondary);">Fiambres, quesos, carnes — precio por kg, venta en gramos</div>
-            </div>
-          </label>
-        </div>
-        <!-- Aviso visible cuando es por peso -->
-        <div id="peso-aviso" style="display:${esPeso ? 'flex' : 'none'}; align-items:center; gap:8px;
-             margin-top:10px; padding:10px 12px; background:rgba(126,211,33,0.08);
-             border:1px solid var(--border-green); border-radius:var(--radius-md); font-size:12px; color:var(--green-primary);">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          Al vender este producto se abrirá la calculadora de balanza automáticamente. El precio es por kilogramo.
-        </div>
-      </div>
-
-      <input type="hidden" id="prod-unidad" value="${prod?.unidad || 'unidad'}">
-
-      <div class="grid-2">
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>Nombre del producto *</label>
-          <input type="text" id="prod-nombre" value="${prod?.nombre || ''}">
-        </div>
-        <div class="form-group">
-          <label>Código / SKU</label>
-          <input type="text" id="prod-codigo" value="${prod?.codigo || ''}">
-        </div>
-        <div class="form-group">
-          <label>Código de barras</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}"
-              style="flex:1;" placeholder="Escribí o escaneá">
-            <button type="button" onclick="Stock.abrirCamaraBarcode()"
-              title="Escanear con cámara"
-              style="width:42px; height:42px; flex-shrink:0; background:var(--bg-card);
-                     border:1px solid var(--border); border-radius:var(--radius-md);
-                     cursor:pointer; display:flex; align-items:center; justify-content:center;
-                     color:var(--text-secondary); transition:all 0.2s;"
-              onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
-              onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            </button>
-          </div>
-          <!-- Visor de cámara en el modal de stock -->
-          <div id="stock-camera-container" style="display:none; margin-top:8px; position:relative;
-               border-radius:var(--radius-md); overflow:hidden; border:2px solid var(--green-primary); background:#000;">
-            <video id="stock-camera-video" autoplay playsinline muted
-              style="width:100%; max-height:200px; object-fit:cover; display:block;"></video>
-            <canvas id="stock-camera-canvas" style="display:none;"></canvas>
-            <!-- Marco -->
-            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;">
-              <div style="position:relative; width:200px; height:70px;">
-                <div style="position:absolute; inset:0; box-shadow:0 0 0 9999px rgba(0,0,0,0.45); border-radius:4px;"></div>
-                <div style="position:absolute; inset:0; border:2px solid var(--green-primary); border-radius:4px;"></div>
-                <div style="position:absolute; top:-2px; left:-2px; width:16px; height:16px; border-top:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
-                <div style="position:absolute; top:-2px; right:-2px; width:16px; height:16px; border-top:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
-                <div style="position:absolute; bottom:-2px; left:-2px; width:16px; height:16px; border-bottom:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
-                <div style="position:absolute; bottom:-2px; right:-2px; width:16px; height:16px; border-bottom:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
-              </div>
-            </div>
-            <!-- Controles -->
-            <div style="position:absolute; top:6px; right:6px; display:flex; gap:5px;">
-              <button id="stock-torch-btn" onclick="Stock.toggleTorch()" title="Linterna"
-                style="width:34px; height:34px; background:rgba(0,0,0,0.65);
-                       border:2px solid rgba(255,255,255,0.25); border-radius:8px;
-                       cursor:pointer; display:none; align-items:center; justify-content:center;
-                       font-size:16px; transition:all 0.2s;">
-                💡
-              </button>
-              <button onclick="Stock.stopCamara()"
-                style="width:34px; height:34px; background:rgba(0,0,0,0.65);
-                       border:2px solid rgba(255,255,255,0.25); border-radius:8px;
-                       cursor:pointer; display:flex; align-items:center; justify-content:center;
-                       color:white; font-size:15px;">✕</button>
-            </div>
-            <div id="stock-camera-status"
-              style="position:absolute; bottom:0; left:0; right:0; padding:6px;
-                     background:linear-gradient(transparent,rgba(0,0,0,0.8));
-                     text-align:center; font-size:11px; font-weight:600; color:white;">
-              Apuntá al código de barras
-            </div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label id="label-precio">Precio de venta${esPeso ? ' por kg *' : ' *'}</label>
-          <div style="position:relative;">
-            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
-                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
-            <input type="number" id="prod-precio" value="${prod?.precio || ''}" min="0" step="0.01"
-              style="padding-left:26px;">
-          </div>
-          <div id="precio-hint" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:${esPeso ? 'block' : 'none'};">
-            Precio por kilogramo. Ej: Jamón a $8.000/kg → ingresás 8000. Al vender se cobra por los gramos que pese.
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Precio de costo</label>
-          <div style="position:relative;">
-            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
-                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
-            <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" min="0" step="0.01"
-              style="padding-left:26px;">
-          </div>
-        </div>
-
-        <!-- Stock: ocultar para productos por peso -->
-        <div class="form-group" id="stock-field" style="display:${esPeso ? 'none' : 'block'};">
-          <label>Stock actual</label>
-          <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0">
-        </div>
-
-        <div class="form-group">
-          <label>Categoría</label>
-          <input type="text" id="prod-cat" value="${prod?.categoria || ''}" list="cats-datalist">
-          <datalist id="cats-datalist">
-            ${cats.map(c => `<option value="${c}">`).join('')}
-          </datalist>
-        </div>
-
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>Descripción</label>
-          <input type="text" id="prod-desc" value="${prod?.descripcion || ''}">
-        </div>
-      </div>
-
       <div class="form-group">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
-                       font-size:13px; text-transform:none; letter-spacing:0;">
-          <label class="toggle">
-            <input type="checkbox" id="prod-activo" ${prod?.activo !== false ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
-          Producto activo (visible en ventas)
-        </label>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="Stock.guardar('${id || ''}')" style="width:auto;">
-          ${prod ? 'Guardar cambios' : 'Crear producto'}
-        </button>
-      </div>
-    `);
-  },
-
-  // Cambiar tipo (unidad/kg) dinámicamente en el modal
-  setTipo(tipo) {
-    const esPeso = tipo === 'kg' || tipo === 'g';
-
-    // Actualizar hidden input
-    const unidadInput = document.getElementById('prod-unidad');
-    if (unidadInput) unidadInput.value = tipo;
-
-    // Actualizar radio visualmente
-    document.querySelectorAll('input[name="prod-tipo"]').forEach(r => {
-      r.checked = r.value === tipo;
-    });
-
-    // Actualizar estilos de las tarjetas
-    const lblUnidad = document.getElementById('tipo-unidad-label');
-    const lblPeso   = document.getElementById('tipo-peso-label');
-    if (lblUnidad) {
-      lblUnidad.style.borderColor = !esPeso ? 'var(--green-primary)' : 'var(--border)';
-      lblUnidad.style.background  = !esPeso ? 'var(--green-muted)' : 'var(--bg-card)';
-      lblUnidad.querySelector('div div:first-child').style.color = !esPeso ? 'var(--green-primary)' : 'var(--text-primary)';
-    }
-    if (lblPeso) {
-      lblPeso.style.borderColor = esPeso ? 'var(--green-primary)' : 'var(--border)';
-      lblPeso.style.background  = esPeso ? 'var(--green-muted)' : 'var(--bg-card)';
-      lblPeso.querySelector('div div:first-child').style.color = esPeso ? 'var(--green-primary)' : 'var(--text-primary)';
-    }
-
-    // Mostrar/ocultar aviso y hint
-    const aviso      = document.getElementById('peso-aviso');
-    const hint       = document.getElementById('precio-hint');
-    const stockField = document.getElementById('stock-field');
-    const labelPrecio= document.getElementById('label-precio');
-
-    if (aviso)       aviso.style.display      = esPeso ? 'flex' : 'none';
-    if (hint)        hint.style.display       = esPeso ? 'block' : 'none';
-    if (stockField)  stockField.style.display = esPeso ? 'none' : 'block';
-    if (labelPrecio) labelPrecio.textContent  = esPeso ? 'Precio de venta por kg *' : 'Precio de venta *';
-  },
-
-  async guardar(id) {
-    const nombre   = document.getElementById('prod-nombre').value.trim();
-    const precio   = parseFloat(document.getElementById('prod-precio').value);
-    const costo    = parseFloat(document.getElementById('prod-costo').value) || null;
-    const stock    = parseInt(document.getElementById('prod-stock').value) || 0;
-    const codigo   = document.getElementById('prod-codigo').value.trim();
-    const barcode  = document.getElementById('prod-barcode').value.trim();
-    const cat      = document.getElementById('prod-cat').value.trim();
-    const unidad   = document.getElementById('prod-unidad').value;
-    const desc     = document.getElementById('prod-desc').value.trim();
-    const activo   = document.getElementById('prod-activo').checked;
-
-    if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
-    if (isNaN(precio) || precio < 0) { showToast('Precio inválido', 'error'); return; }
-
-    const data = {
-      nombre, precio, stock, activo, unidad,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    if (costo) data.precioCosto = costo;
-    if (codigo) data.codigo = codigo;
-    if (barcode) data.codigoBarra = barcode;
-    if (cat) data.categoria = cat;
-    if (desc) data.descripcion = desc;
-
-    try {
-      const col = db.collection('businesses').doc(PS.businessId).collection('productos');
-      if (id) {
-        await col.doc(id).update(data);
-        showToast('Producto actualizado', 'success');
-      } else {
-        data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        await col.add(data);
-        showToast('Producto creado', 'success');
-      }
-      closeModal();
-      await this.load();
-    } catch (e) {
-      showToast('Error: ' + e.message, 'error');
-    }
-  },
-
-  ajustarStock(id, nombre, stockActual) {
-    openModal(`
-      <div class="modal-header">
-        <h3 class="modal-title">± Ajustar stock</h3>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-      <p style="font-weight:600; margin-bottom:4px;">${nombre}</p>
-      <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
-        Stock actual: <span style="color:var(--green-primary); font-weight:700;">${stockActual}</span>
-      </p>
-
-      <div class="form-group">
-        <label>Tipo de ajuste</label>
-        <select id="ajuste-tipo">
-          <option value="agregar">➕ Agregar unidades</option>
-          <option value="restar">➖ Restar unidades</option>
-          <option value="establecer">🔄 Establecer cantidad exacta</option>
+        <label>Producto</label>
+        <select id="balanza-prod" onchange="Ventas.balanzaCalc()">
+          ${opciones || '<option value="">Sin productos por peso</option>'}
         </select>
       </div>
-      <div class="form-group">
-        <label>Cantidad</label>
-        <input type="number" id="ajuste-cant" value="1" min="0" placeholder="0">
+
+      <!-- Display -->
+      <div style="background:var(--bg-primary); border:2px solid var(--border-green);
+                  border-radius:var(--radius-lg); padding:24px; margin:16px 0;
+                  text-align:center; font-family:var(--font-mono);">
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase;
+                    letter-spacing:1.5px; margin-bottom:6px;">Peso</div>
+        <div id="balanza-display"
+          style="font-size:56px; font-weight:900; color:var(--green-primary);
+                 letter-spacing:3px; line-height:1; transition:all 0.1s;">0</div>
+        <div style="font-size:16px; color:var(--text-secondary); margin-top:4px; font-weight:600;">
+          gramos
+        </div>
+        <div style="margin-top:12px; display:flex; align-items:center; justify-content:center;
+                    gap:6px; font-size:11px; color:var(--text-muted);">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          Teclado físico · Escáner · Pantalla · Enter = agregar · Esc = borrar
+        </div>
       </div>
-      <div class="form-group">
-        <label>Motivo (opcional)</label>
-        <input type="text" id="ajuste-motivo" placeholder="Ej: Compra a proveedor, pérdida, inventario...">
+
+      <!-- Teclado en pantalla -->
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px;">
+        ${[7,8,9,4,5,6,1,2,3].map(n => `
+          <button id="bkey-${n}" onclick="Ventas.balanzaKey('${n}')"
+            style="padding:18px; font-size:24px; font-weight:700; font-family:var(--font-mono);
+                   background:var(--bg-card); border:1px solid var(--border);
+                   border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
+                   transition:all 0.12s; user-select:none;"
+            onmousedown="this.style.background='var(--green-muted)';this.style.borderColor='var(--green-primary)'"
+            onmouseup="this.style.background='var(--bg-card)';this.style.borderColor='var(--border)'"
+            ontouchstart="this.style.background='var(--green-muted)';this.style.borderColor='var(--green-primary)'"
+            ontouchend="this.style.background='var(--bg-card)';this.style.borderColor='var(--border)'">
+            ${n}
+          </button>
+        `).join('')}
+        <!-- Fila inferior: C · 0 · ⌫ -->
+        <button id="bkey-C" onclick="Ventas.balanzaKey('C')"
+          style="padding:18px; font-size:18px; font-weight:800;
+                 background:rgba(248,81,73,0.08); border:1px solid rgba(248,81,73,0.2);
+                 border-radius:var(--radius-md); cursor:pointer; color:var(--red);
+                 transition:all 0.12s; user-select:none;"
+          onmousedown="this.style.background='rgba(248,81,73,0.2)'"
+          onmouseup="this.style.background='rgba(248,81,73,0.08)'"
+          ontouchstart="this.style.background='rgba(248,81,73,0.2)'"
+          ontouchend="this.style.background='rgba(248,81,73,0.08)'">C</button>
+        <button id="bkey-0" onclick="Ventas.balanzaKey('0')"
+          style="padding:18px; font-size:24px; font-weight:700; font-family:var(--font-mono);
+                 background:var(--bg-card); border:1px solid var(--border);
+                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
+                 transition:all 0.12s; user-select:none;"
+          onmousedown="this.style.background='var(--green-muted)';this.style.borderColor='var(--green-primary)'"
+          onmouseup="this.style.background='var(--bg-card)';this.style.borderColor='var(--border)'"
+          ontouchstart="this.style.background='var(--green-muted)';this.style.borderColor='var(--green-primary)'"
+          ontouchend="this.style.background='var(--bg-card)';this.style.borderColor='var(--border)'">0</button>
+        <button id="bkey-del" onclick="Ventas.balanzaKey('⌫')"
+          style="padding:18px; font-size:20px; font-weight:700;
+                 background:var(--bg-card); border:1px solid var(--border);
+                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-secondary);
+                 transition:all 0.12s; user-select:none;"
+          onmousedown="this.style.background='var(--bg-hover)'"
+          onmouseup="this.style.background='var(--bg-card)'"
+          ontouchstart="this.style.background='var(--bg-hover)'"
+          ontouchend="this.style.background='var(--bg-card)'">⌫</button>
+      </div>
+
+      <!-- Pesos frecuentes -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:10px; color:var(--text-muted); font-weight:700;
+                    text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">
+          Pesos frecuentes
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          ${[100,150,200,250,300,400,500,750,1000].map(g => `
+            <button onclick="Ventas.balanzaSet('${g}')"
+              style="padding:7px 13px; font-size:12px; font-weight:700; font-family:var(--font-mono);
+                     background:var(--bg-card); border:1px solid var(--border); border-radius:6px;
+                     cursor:pointer; color:var(--text-secondary); transition:all 0.15s; user-select:none;"
+              onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
+              onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+              ${g >= 1000 ? (g/1000)+'kg' : g+'g'}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Resultado -->
+      <div id="balanza-resultado" style="background:var(--green-muted); border:1px solid var(--border-green);
+           border-radius:var(--radius-md); padding:16px; text-align:center; display:none; margin-bottom:4px;">
+        <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;">Precio a cobrar</div>
+        <div id="balanza-precio" style="font-size:34px; font-weight:900; font-family:var(--font-mono);
+             color:var(--green-primary);">$0</div>
+        <div id="balanza-detalle" style="font-size:12px; color:var(--text-secondary); margin-top:4px;"></div>
       </div>
 
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="Stock.confirmarAjuste('${id}', ${stockActual})" style="width:auto;">
-          Confirmar ajuste
+        <button class="btn btn-primary" style="width:auto;" id="balanza-agregar-btn"
+          onclick="Ventas.balanzaAgregar()" disabled>
+          Agregar al carrito
+        </button>
+      </div>
+    `);
+
+    // Resetear estado
+    this._balanzaGramos = '';
+    this._balanzaProd   = null;
+    this._balanzaPrecio = 0;
+    this.balanzaCalc();
+  },
+
+  // Tecla del teclado en pantalla o físico
+  balanzaKey(key) {
+    if (key === 'C' || key === 'Escape') {
+      this._balanzaGramos = '';
+    } else if (key === '⌫' || key === 'Backspace' || key === 'Delete') {
+      this._balanzaGramos = this._balanzaGramos.slice(0, -1);
+    } else if (/^\d$/.test(key)) {
+      if (this._balanzaGramos.length >= 6) return; // max 999999g
+      this._balanzaGramos += key;
+    } else {
+      return;
+    }
+
+    const display = document.getElementById('balanza-display');
+    if (display) {
+      display.textContent = this._balanzaGramos || '0';
+      // Flash verde al escribir
+      display.style.color = 'var(--green-bright)';
+      setTimeout(() => { display.style.color = 'var(--green-primary)'; }, 80);
+    }
+    this.balanzaCalc();
+  },
+
+  // Botones de peso frecuente
+  balanzaSet(gramos) {
+    this._balanzaGramos = String(gramos);
+    const display = document.getElementById('balanza-display');
+    if (display) display.textContent = this._balanzaGramos;
+    this.balanzaCalc();
+  },
+
+  // Calcular precio en tiempo real
+  balanzaCalc() {
+    const gramos    = parseInt(this._balanzaGramos) || 0;
+    const prodId    = document.getElementById('balanza-prod')?.value;
+    const prod      = this.productos.find(p => p.id === prodId);
+    const resultado = document.getElementById('balanza-resultado');
+    const precioEl  = document.getElementById('balanza-precio');
+    const detalleEl = document.getElementById('balanza-detalle');
+    const btnAgr    = document.getElementById('balanza-agregar-btn');
+
+    if (!prod || gramos <= 0) {
+      if (resultado) resultado.style.display = 'none';
+      if (btnAgr) btnAgr.disabled = true;
+      return;
+    }
+
+    // precio del producto = precio por KG
+    // gramos → precio = (precio/1000) * gramos
+    const precioPorGramo = prod.precio / 1000;
+    const precioTotal    = Math.round(precioPorGramo * gramos);
+
+    if (resultado) resultado.style.display = 'block';
+    if (precioEl)  precioEl.textContent = formatPrice(precioTotal);
+    if (detalleEl) detalleEl.textContent =
+      `${gramos}g de ${prod.nombre} · ${formatPrice(prod.precio)}/kg`;
+    if (btnAgr) {
+      btnAgr.disabled = false;
+      btnAgr.textContent = `Agregar ${formatPrice(precioTotal)}`;
+    }
+
+    this._balanzaProd   = prod;
+    this._balanzaPrecio = precioTotal;
+  },
+
+  // Confirmar y agregar al carrito
+  balanzaAgregar() {
+    if (!this._balanzaProd || !this._balanzaGramos) return;
+    const gramos = parseInt(this._balanzaGramos) || 0;
+    if (gramos <= 0) { showToast('Ingresá el peso en gramos', 'warning'); return; }
+
+    const itemId = `${this._balanzaProd.id}_${Date.now()}`;
+    this.cart.push({
+      id:       itemId,
+      prodId:   this._balanzaProd.id,
+      nombre:   `${this._balanzaProd.nombre} (${gramos}g)`,
+      precio:   this._balanzaPrecio,
+      cantidad: 1,
+      esPeso:   true,
+      stockMax: 9999
+    });
+
+    this.renderCart();
+    this.updateTotals();
+    closeModal();
+    showToast(`${this._balanzaProd.nombre} ${gramos}g — ${formatPrice(this._balanzaPrecio)} agregado`, 'success');
+  },
+
+  // ════════════════════════════════════════════════════════
+  // CÁMARA — usa html5-qrcode (BarcodeDetector nativo + fallback)
+  // ════════════════════════════════════════════════════════
+  async toggleCamera() {
+    this.cameraActive ? this.stopCamera() : await this.startCamera();
+  },
+
+  async startCamera() {
+    const container = document.getElementById('camera-container');
+    const btn       = document.getElementById('btn-camara');
+    const status    = document.getElementById('camera-status');
+    if (!container) return;
+
+    try {
+      // Cargar html5-qrcode si no está disponible
+      if (!window.Html5Qrcode) {
+        if (status) status.textContent = 'Cargando lector...';
+        await this._loadHtml5QrCode();
+      }
+
+      if (!window.Html5Qrcode) {
+        showToast('No se pudo cargar el lector de códigos', 'error');
+        return;
+      }
+
+      // Limpiar instancia anterior si existe
+      if (this._html5QrCode) {
+        try { await this._html5QrCode.stop(); } catch(e) {}
+        this._html5QrCode = null;
+      }
+
+      this.cameraActive = true;
+      container.style.display = 'block';
+
+      if (btn) {
+        btn.style.borderColor = 'var(--green-primary)';
+        btn.style.color       = 'var(--green-primary)';
+        btn.style.background  = 'var(--green-muted)';
+      }
+
+      // html5-qrcode necesita un div con id para renderizar
+      // Usamos el camera-container pero ocultamos su UI propia y mostramos la nuestra
+      const qrDivId = 'qr-reader-internal';
+      let qrDiv = document.getElementById(qrDivId);
+      if (!qrDiv) {
+        qrDiv = document.createElement('div');
+        qrDiv.id = qrDivId;
+        qrDiv.style.cssText = 'position:absolute;inset:0;z-index:1;';
+        container.insertBefore(qrDiv, container.firstChild);
+      }
+      qrDiv.innerHTML = '';
+
+      const scanner = new Html5Qrcode(qrDivId, { verbose: false });
+      this._html5QrCode = scanner;
+
+      let lastCode = '', lastTime = 0;
+
+      const onSuccess = (code) => {
+        const now = Date.now();
+        if (code === lastCode && now - lastTime < 2000) return;
+        lastCode = code;
+        lastTime = now;
+
+        if (status) status.textContent = `✓ ${code}`;
+        this._beep();
+        this.stopCamera();
+        setTimeout(() => this.addByCode(code), 80);
+      };
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 220, height: 90 },
+        aspectRatio: 1.7,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+        ]
+      };
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        config,
+        onSuccess,
+        () => {} // onError silencioso — es normal no leer cada frame
+      );
+
+      // Después de iniciar, intentar linterna
+      try {
+        const track = scanner?.getRunningTrackCameraCapabilities?.();
+        const torchBtn = document.getElementById('btn-torch');
+        if (torchBtn) {
+          const hasTorch = track?.torchFeature?.isSupported?.() ?? false;
+          torchBtn.style.display = hasTorch ? 'flex' : 'none';
+          this._qrTrackCaps = track;
+        }
+      } catch(e) {}
+
+      if (status) status.textContent = 'Apuntá el código de barras al recuadro';
+
+    } catch (e) {
+      console.error('Camera error:', e);
+      this.cameraActive = false;
+      if (e.name === 'NotAllowedError') {
+        showToast('Permiso de cámara denegado. Habilitalo en la configuración del navegador.', 'error', 5000);
+      } else {
+        showToast('No se pudo acceder a la cámara: ' + e.message, 'error');
+      }
+    }
+  },
+
+  _loadHtml5QrCode() {
+    return new Promise((resolve) => {
+      if (window.Html5Qrcode) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+      s.onload  = resolve;
+      s.onerror = () => { console.warn('html5-qrcode no cargó'); resolve(); };
+      document.head.appendChild(s);
+    });
+  },
+
+  // Encender/apagar linterna
+  async toggleTorch() {
+    const torchBtn   = document.getElementById('btn-torch');
+    const torchLabel = document.getElementById('torch-label');
+    try {
+      this.torchOn = !this.torchOn;
+      if (this._qrTrackCaps) {
+        await this._qrTrackCaps.torchFeature.apply(this.torchOn);
+      } else if (this._videoTrack) {
+        await this._videoTrack.applyConstraints({ advanced: [{ torch: this.torchOn }] });
+      }
+      if (torchBtn) {
+        torchBtn.style.background  = this.torchOn ? 'rgba(126,211,33,0.85)' : 'rgba(0,0,0,0.75)';
+        torchBtn.style.borderColor = this.torchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.35)';
+        torchBtn.style.color       = this.torchOn ? '#0D1117' : 'white';
+      }
+      if (torchLabel) torchLabel.textContent = this.torchOn ? 'ON' : 'OFF';
+    } catch(e) {
+      showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
+      this.torchOn = false;
+    }
+  },
+
+  _beep() {
+    try {
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+      const now  = ctx.currentTime;
+      // Pip doble estilo supermercado: dos tonos cortos y limpios
+      [0, 0.12].forEach(offset => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 1800;
+        gain.gain.setValueAtTime(0, now + offset);
+        gain.gain.linearRampToValueAtTime(0.35, now + offset + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.09);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.1);
+      });
+    } catch (e) { /* sin audio = ok */ }
+  },
+    if (this._html5QrCode) {
+      this._html5QrCode.stop().catch(() => {});
+      this._html5QrCode = null;
+    }
+    // limpieza legado por si quedó algo de versiones anteriores
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach(t => t.stop());
+      this.cameraStream = null;
+    }
+    if (this._scanInterval)  { clearInterval(this._scanInterval);   this._scanInterval = null; }
+    if (this._scanRAF)       { cancelAnimationFrame(this._scanRAF); this._scanRAF = null; }
+
+    this.cameraActive = false;
+    this.torchOn      = false;
+    this._videoTrack  = null;
+    this._qrTrackCaps = null;
+
+    const container = document.getElementById('camera-container');
+    const btn       = document.getElementById('btn-camara');
+    if (container) container.style.display = 'none';
+    if (btn) {
+      btn.style.borderColor = 'var(--border)';
+      btn.style.color       = 'var(--text-secondary)';
+      btn.style.background  = 'var(--bg-card)';
+    }
+  },
+  // ════════════════════════════════════════════════════════
+  // CARRITO
+  // ════════════════════════════════════════════════════════
+  addToCart(prodId) {
+    const prod = this.productos.find(p => p.id === prodId);
+    if (!prod || prod.stock <= 0) { showToast('Sin stock', 'error'); return; }
+    const existing = this.cart.find(i => i.id === prodId);
+    if (existing) {
+      if (existing.cantidad >= prod.stock) {
+        showToast(`Máximo ${prod.stock} unidades`, 'warning'); return;
+      }
+      existing.cantidad++;
+    } else {
+      this.cart.push({ id: prodId, nombre: prod.nombre, precio: prod.precio, cantidad: 1, stockMax: prod.stock });
+    }
+    this.renderCart();
+    this.updateTotals();
+  },
+
+  addByCode(code) {
+    const prod = this.productos.find(p => p.codigo === code || p.codigoBarra === code);
+    if (prod) {
+      if (this._esPeso(prod)) {
+        this.abrirBalanza(prod.id);
+      } else {
+        this.addToCart(prod.id);
+        showToast(`${prod.nombre} agregado`, 'success', 1500);
+      }
+    } else {
+      // Código no encontrado → ofrecer registrar el producto
+      this.mostrarProductoNoEncontrado(code);
+    }
+  },
+
+  mostrarProductoNoEncontrado(code) {
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Código no encontrado</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+
+      <div style="background:rgba(240,165,0,0.08); border:1px solid rgba(240,165,0,0.25);
+                  border-radius:var(--radius-md); padding:14px 16px; margin-bottom:20px;
+                  display:flex; align-items:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" style="flex-shrink:0;">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div>
+          <div style="font-weight:700; font-size:13px; color:var(--orange);">Código no encontrado en el sistema</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px; font-family:var(--font-mono);">${code}</div>
+        </div>
+      </div>
+
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:20px; line-height:1.6;">
+        ¿Querés registrar este producto ahora y agregarlo al carrito?
+      </p>
+
+      <!-- Formulario rápido -->
+      <div class="form-group">
+        <label>Nombre del producto *</label>
+        <input type="text" id="nf-nombre" placeholder="Ej: Galletitas Oreo" autofocus>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Precio de venta *</label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                         color:var(--text-muted); font-weight:600;">$</span>
+            <input type="number" id="nf-precio" min="0" step="0.01" style="padding-left:26px;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Stock inicial</label>
+          <input type="number" id="nf-stock" value="1" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Categoría</label>
+        <input type="text" id="nf-cat" placeholder="Ej: Almacén">
+      </div>
+
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
+                  padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:4px;">
+        El código <strong style="font-family:var(--font-mono); color:var(--text-primary);">${code}</strong>
+        se guardará como código de barras del producto.
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;"
+          onclick="Ventas.registrarYAgregar('${code}')">
+          Registrar y agregar al carrito
         </button>
       </div>
     `);
   },
 
-  async confirmarAjuste(id, stockActual) {
-    const tipo  = document.getElementById('ajuste-tipo').value;
-    const cant  = parseInt(document.getElementById('ajuste-cant').value) || 0;
-    const motivo= document.getElementById('ajuste-motivo').value.trim();
+  async registrarYAgregar(code) {
+    const nombre = document.getElementById('nf-nombre')?.value.trim();
+    const precio = parseFloat(document.getElementById('nf-precio')?.value);
+    const stock  = parseInt(document.getElementById('nf-stock')?.value) || 0;
+    const cat    = document.getElementById('nf-cat')?.value.trim();
 
-    let nuevoStock;
-    if (tipo === 'agregar')    nuevoStock = stockActual + cant;
-    else if (tipo === 'restar') nuevoStock = Math.max(0, stockActual - cant);
-    else                        nuevoStock = cant;
+    if (!nombre) { showToast('Ingresá el nombre del producto', 'warning'); return; }
+    if (!precio || precio <= 0) { showToast('Ingresá un precio válido', 'warning'); return; }
 
     try {
-      const prodRef = db.collection('businesses').doc(PS.businessId).collection('productos').doc(id);
-      await prodRef.update({ stock: nuevoStock, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      const bizRef = db.collection('businesses').doc(PS.businessId);
+      const ref = await bizRef.collection('productos').add({
+        nombre, precio, stock, activo: true,
+        codigoBarra: code,
+        categoria: cat || '',
+        unidad: 'unidad',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
 
-      // Registrar movimiento
-      await db.collection('businesses').doc(PS.businessId).collection('movimientos').add({
-        productoId: id,
-        tipo, cantidad: cant, stockAntes: stockActual, stockDespues: nuevoStock,
-        motivo, fecha: firebase.firestore.FieldValue.serverTimestamp(),
+      // Agregar al array local
+      const newProd = { id: ref.id, nombre, precio, stock, activo: true, codigoBarra: code, categoria: cat || '', unidad: 'unidad' };
+      this.productos.push(newProd);
+      this.productosFiltrados = [...this.productos];
+      this.renderProductos();
+
+      // Agregar al carrito directamente
+      this.cart.push({ id: ref.id, nombre, precio, cantidad: 1, stockMax: Math.max(stock, 999) });
+      this.renderCart();
+      this.updateTotals();
+
+      closeModal();
+      showToast(`${nombre} registrado y agregado al carrito`, 'success');
+
+    } catch (e) {
+      showToast('Error al registrar: ' + e.message, 'error');
+    }
+  },
+
+  changeQty(id, delta) {
+    const item = this.cart.find(i => i.id === id);
+    if (!item) return;
+    if (item.esPeso) {
+      if (delta < 0) this.cart = this.cart.filter(i => i.id !== id);
+    } else {
+      item.cantidad += delta;
+      if (item.cantidad <= 0) this.cart = this.cart.filter(i => i.id !== id);
+      else if (item.cantidad > item.stockMax) {
+        item.cantidad = item.stockMax;
+        showToast(`Máximo ${item.stockMax} unidades`, 'warning');
+      }
+    }
+    this.renderCart();
+    this.updateTotals();
+  },
+
+  removeFromCart(id) {
+    this.cart = this.cart.filter(i => i.id !== id);
+    this.renderCart();
+    this.updateTotals();
+  },
+
+  clearCart() {
+    this.cart = [];
+    this.renderCart();
+    this.updateTotals();
+  },
+
+  renderCart() {
+    const container = document.getElementById('cart-items');
+    const countEl   = document.getElementById('cart-count');
+    if (!container) return;
+
+    const total = this.cart.reduce((s, i) => s + i.cantidad, 0);
+    if (countEl) countEl.textContent = total;
+
+    if (this.cart.length === 0) {
+      container.innerHTML = `
+        <div class="cart-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:8px;">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <span>El carrito está vacío</span>
+          <span style="font-size:11px;">Buscá, escaneá o usá la cámara</span>
+        </div>`;
+      const btn = document.getElementById('cobrar-btn');
+      if (btn) btn.disabled = true;
+      return;
+    }
+
+    container.innerHTML = this.cart.map(item => `
+      <div class="cart-item">
+        <div style="flex:1; min-width:0;">
+          <div class="cart-item-name">${item.nombre}</div>
+          <div class="cart-item-price">
+            ${item.esPeso ? 'Precio por peso' : `${formatPrice(item.precio)} c/u`}
+          </div>
+        </div>
+        ${item.esPeso ? '' : `
+          <div class="qty-control">
+            <button class="qty-btn" onclick="Ventas.changeQty('${item.id}', -1)">−</button>
+            <span class="qty-value">${item.cantidad}</span>
+            <button class="qty-btn" onclick="Ventas.changeQty('${item.id}', 1)">+</button>
+          </div>
+        `}
+        <div style="font-family:var(--font-mono); font-size:13px; font-weight:700;
+                    color:var(--green-primary); min-width:70px; text-align:right;">
+          ${formatPrice(item.esPeso ? item.precio : item.precio * item.cantidad)}
+        </div>
+        <button class="cart-remove" onclick="Ventas.removeFromCart('${item.id}')">✕</button>
+      </div>
+    `).join('');
+
+    const btn = document.getElementById('cobrar-btn');
+    if (btn) btn.disabled = false;
+  },
+
+  updateTotals() {
+    const subtotal = this.cart.reduce((s, i) =>
+      s + (i.esPeso ? i.precio : i.precio * i.cantidad), 0
+    );
+    const descPct = parseFloat(document.getElementById('cart-descuento')?.value || 0);
+    const total   = subtotal * (1 - descPct / 100);
+    const subEl   = document.getElementById('cart-subtotal');
+    const totEl   = document.getElementById('cart-total');
+    if (subEl) subEl.textContent = formatPrice(subtotal);
+    if (totEl) totEl.textContent = formatPrice(total);
+    const btn = document.getElementById('cobrar-btn');
+    if (btn && this.cart.length > 0) btn.textContent = `Cobrar ${formatPrice(total)}`;
+    this.calcVuelto();
+  },
+
+  selectPago(metodo) {
+    const s = document.getElementById('efectivo-section');
+    if (s) s.style.display = metodo === 'Efectivo' ? 'block' : 'none';
+  },
+
+  calcVuelto() {
+    const subtotal = this.cart.reduce((s, i) =>
+      s + (i.esPeso ? i.precio : i.precio * i.cantidad), 0
+    );
+    const descPct  = parseFloat(document.getElementById('cart-descuento')?.value || 0);
+    const total    = subtotal * (1 - descPct / 100);
+    const recibido = parseFloat(document.getElementById('monto-recibido')?.value || 0);
+    const vuelto   = recibido - total;
+    const el = document.getElementById('vuelto-val');
+    if (el) {
+      el.textContent = formatPrice(Math.max(0, vuelto));
+      el.style.color = vuelto < 0 ? 'var(--red)' : 'var(--green-primary)';
+    }
+  },
+
+  // ── Cobrar ────────────────────────────────────────────────
+  async cobrar() {
+    if (this.cart.length === 0) return;
+    const metodoPago = document.querySelector('input[name="pago"]:checked')?.value;
+    if (!metodoPago) { showToast('Seleccioná el método de pago', 'warning'); return; }
+
+    const subtotal = this.cart.reduce((s, i) =>
+      s + (i.esPeso ? i.precio : i.precio * i.cantidad), 0
+    );
+    const descPct = parseFloat(document.getElementById('cart-descuento')?.value || 0);
+    const total   = subtotal * (1 - descPct / 100);
+
+    const btn = document.getElementById('cobrar-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader"></span> Procesando...';
+
+    try {
+      const batch  = db.batch();
+      const bizRef = db.collection('businesses').doc(PS.businessId);
+      const ventaRef = bizRef.collection('ventas').doc();
+
+      batch.set(ventaRef, {
+        items: this.cart.map(i => ({
+          id: i.prodId || i.id, nombre: i.nombre,
+          precio: i.precio, cantidad: i.cantidad, esPeso: i.esPeso || false
+        })),
+        subtotal, descuento: descPct, total, metodoPago,
+        fecha: firebase.firestore.FieldValue.serverTimestamp(),
         usuario: PS.user.uid
       });
 
-      showToast(`Stock actualizado a ${nuevoStock} unidades`, 'success');
-      closeModal();
-      await this.load();
+      // Solo descontar stock de productos por unidad
+      this.cart.filter(i => !i.esPeso).forEach(item => {
+        batch.update(bizRef.collection('productos').doc(item.id), {
+          stock: firebase.firestore.FieldValue.increment(-item.cantidad)
+        });
+      });
+
+      await batch.commit();
+
+      // Stock local
+      this.cart.filter(i => !i.esPeso).forEach(item => {
+        const p = this.productos.find(p => p.id === item.id);
+        if (p) p.stock -= item.cantidad;
+      });
+
+      this.cart = [];
+      this.renderCart();
+      this.updateTotals();
+      this.renderProductos();
+      showToast(`Venta registrada — ${formatPrice(total)}`, 'success');
+
     } catch (e) {
-      showToast('Error: ' + e.message, 'error');
+      console.error(e);
+      showToast('Error al registrar la venta: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Cobrar';
     }
   },
 
-  eliminar(id, nombre) {
-    confirmDialog(`¿Eliminar el producto <strong>${nombre}</strong>? Esta acción no se puede deshacer.`, async () => {
-      try {
-        await db.collection('businesses').doc(PS.businessId).collection('productos').doc(id).delete();
-        showToast('Producto eliminado', 'success');
-        await this.load();
-      } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+  // ════════════════════════════════════════════════════════
+  // ESCÁNER FÍSICO + TECLADO
+  // Detecta el escáner por velocidad (< 50ms entre teclas)
+  // Cuando la balanza está abierta, redirige todo al display
+  // ════════════════════════════════════════════════════════
+  initScanner() {
+    this.scanBuffer = '';
+    this.scanTimer  = null;
+
+    document.addEventListener('keydown', this._scanHandler = (e) => {
+      // Ignorar si hay un input de texto enfocado (que no sea la búsqueda del POS)
+      const active  = document.activeElement;
+      const inInput = active &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT') &&
+        active.id !== 'pos-search';
+      if (inInput) return;
+
+      // ── Balanza abierta → redirigir teclas ──────────────
+      const balanzaAbierta = !!document.getElementById('balanza-display');
+      if (balanzaAbierta) {
+        if (/^\d$/.test(e.key)) {
+          e.preventDefault();
+          this.balanzaKey(e.key);
+          this._flashKey(e.key);
+          return;
+        }
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault();
+          this.balanzaKey('⌫');
+          return;
+        }
+        if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          this.balanzaKey('C');
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const btn = document.getElementById('balanza-agregar-btn');
+          if (btn && !btn.disabled) this.balanzaAgregar();
+          return;
+        }
+        return; // bloquear otras teclas
+      }
+
+      // ── POS normal: detectar escáner o teclado ──────────
+      if (e.key === 'Enter') {
+        if (this.scanBuffer.length >= 3) {
+          this.addByCode(this.scanBuffer.trim());
+        }
+        this.scanBuffer = '';
+        clearTimeout(this.scanTimer);
+        return;
+      }
+
+      if (e.key.length === 1) {
+        this.scanBuffer += e.key;
+        clearTimeout(this.scanTimer);
+        // Si pasan más de 100ms entre teclas = teclado manual (no escáner)
+        // El escáner envía todo en < 50ms
+        this.scanTimer = setTimeout(() => {
+          this.scanBuffer = '';
+        }, 100);
       }
     });
   },
 
-  // ══════════════════════════════════════════════════════════
-  // CÁMARA EN MODAL DE STOCK — para escanear código de barras
-  // ══════════════════════════════════════════════════════════
-  _stockStream: null,
-  _stockScanInterval: null,
-  _stockTorchOn: false,
-  _stockVideoTrack: null,
-
-  async abrirCamaraBarcode() {
-    const container = document.getElementById('stock-camera-container');
-    const video     = document.getElementById('stock-camera-video');
-    const status    = document.getElementById('stock-camera-status');
-    if (!container || !video) return;
-
-    // Si ya está abierta, cerrar
-    if (this._stockStream) { this.stopCamara(); return; }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-      });
-      this._stockStream = stream;
-      video.srcObject = stream;
-      container.style.display = 'block';
-
-      // Linterna
-      const track = stream.getVideoTracks()[0];
-      this._stockVideoTrack = track;
-      const caps = track.getCapabilities?.() || {};
-      const torchBtn = document.getElementById('stock-torch-btn');
-      if (torchBtn) torchBtn.style.display = caps.torch ? 'flex' : 'none';
-
-      // Cargar ZXing si no está
-      if (!window.ZXing) {
-        if (status) status.textContent = 'Cargando lector...';
-        await new Promise((resolve) => {
-          if (window.ZXing) { resolve(); return; }
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
-          s.onload = resolve;
-          s.onerror = resolve;
-          document.head.appendChild(s);
-        });
-      }
-
-      if (status) status.textContent = 'Apuntá al código de barras';
-      this._iniciarScanStock(video);
-
-    } catch (e) {
-      if (e.name === 'NotAllowedError') {
-        showToast('Permiso de cámara denegado. Habilitalo en el navegador.', 'error', 5000);
-      } else {
-        showToast('No se pudo acceder a la cámara.', 'error');
-      }
-    }
+  // Flash visual en el botón de la balanza
+  _flashKey(key) {
+    const btn = document.getElementById(`bkey-${key}`);
+    if (!btn) return;
+    const orig = btn.style.background;
+    btn.style.background  = 'var(--green-muted)';
+    btn.style.borderColor = 'var(--green-primary)';
+    setTimeout(() => {
+      btn.style.background  = orig || 'var(--bg-card)';
+      btn.style.borderColor = 'var(--border)';
+    }, 100);
   },
 
-  _iniciarScanStock(video) {
-    if (!window.ZXing) return;
-    const canvas  = document.getElementById('stock-camera-canvas');
-    const status  = document.getElementById('stock-camera-status');
-    const ctx     = canvas.getContext('2d');
-
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX,
-      ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.CODABAR
-    ]);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(hints);
-
-    this._stockScanInterval = setInterval(() => {
-      if (video.readyState < 2) return;
-      try {
-        canvas.width  = video.videoWidth  || 640;
-        canvas.height = video.videoHeight || 480;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-        const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-        const result    = reader.decode(bitmap);
-
-        if (result) {
-          const code = result.getText();
-          // Poner el código en el input
-          const input = document.getElementById('prod-barcode');
-          if (input) {
-            input.value = code;
-            input.style.borderColor = 'var(--green-primary)';
-            input.style.boxShadow   = '0 0 0 3px var(--green-muted)';
-          }
-          if (status) status.textContent = `Detectado: ${code}`;
-          // Beep
-          this._beepStock();
-          showToast(`Código escaneado: ${code}`, 'success', 2000);
-          this.stopCamara();
-        }
-      } catch (e) { /* NotFoundException = sin código en frame */ }
-    }, 250);
-  },
-
-  async toggleTorch() {
-    if (!this._stockVideoTrack) return;
-    const torchBtn = document.getElementById('stock-torch-btn');
-    this._stockTorchOn = !this._stockTorchOn;
-    try {
-      await this._stockVideoTrack.applyConstraints({
-        advanced: [{ torch: this._stockTorchOn }]
-      });
-      if (torchBtn) {
-        torchBtn.style.background   = this._stockTorchOn ? 'rgba(126,211,33,0.3)' : 'rgba(0,0,0,0.65)';
-        torchBtn.style.borderColor  = this._stockTorchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.25)';
-        torchBtn.title = this._stockTorchOn ? 'Apagar linterna' : 'Encender linterna';
-      }
-    } catch (e) {
-      showToast('Este dispositivo no soporta linterna.', 'warning');
-      this._stockTorchOn = false;
+  destroyScanner() {
+    if (this._scanHandler) {
+      document.removeEventListener('keydown', this._scanHandler);
+      this._scanHandler = null;
     }
-  },
-
-  stopCamara() {
-    if (this._stockVideoTrack && this._stockTorchOn) {
-      this._stockVideoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
-    }
-    if (this._stockStream) {
-      this._stockStream.getTracks().forEach(t => t.stop());
-      this._stockStream = null;
-    }
-    if (this._stockScanInterval) {
-      clearInterval(this._stockScanInterval);
-      this._stockScanInterval = null;
-    }
-    this._stockVideoTrack = null;
-    this._stockTorchOn = false;
-    const container = document.getElementById('stock-camera-container');
-    if (container) container.style.display = 'none';
-  },
-
-  _beepStock() {
-    try {
-      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 1200;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
-    } catch (e) { /* sin audio = ok */ }
+    this.stopCamera();
   }
 };
