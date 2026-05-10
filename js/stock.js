@@ -1000,7 +1000,7 @@ const Stock = {
               <tr>
                 <td style="font-weight:600;">${p.nombre}</td>
                 <td><span class="badge badge-muted">${p.categoria || '—'}</span></td>
-                <td class="td-mono td-green">$\u202F${Math.round(p.precio).toLocaleString('es-AR')}</td>
+                <td class="td-mono td-green">${formatPrice(p.precio)}</td>
                 <td class="td-mono">${p.unidad === 'kg' || p.unidad === 'g' ? 'Peso' : p.stock}</td>
               </tr>
             `).join('')}
