@@ -753,6 +753,8 @@ const Ventas = {
       });
     } catch (e) { /* sin audio = ok */ }
   },
+
+  stopCamera() {
     if (this._html5QrCode) {
       this._html5QrCode.stop().catch(() => {});
       this._html5QrCode = null;
