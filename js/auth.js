@@ -72,7 +72,7 @@ const Auth = {
     return `
       <div class="auth-card">
         <div class="auth-logo" style="justify-content:center;">
-          <img id="auth-logo-1" src="logo-dark.png" alt="PuntoStock" style="height:40px; width:auto;" onerror="this.style.display='none'">
+          <img id="auth-logo-1" src="../logo-dark.png" alt="PuntoStock" style="height:40px; width:auto;" onerror="this.style.display='none'">
         </div>
         <h2 class="auth-title">Bienvenido de nuevo</h2>
         <p class="auth-subtitle">Ingresá a tu cuenta para continuar</p>
@@ -119,7 +119,7 @@ const Auth = {
         <!-- Header -->
         <div style="text-align:center; margin-bottom:40px; max-width:600px;">
           <div style="margin-bottom:20px; text-align:center;">
-            <img id="auth-logo-2" src="logo-dark.png" alt="PuntoStock" style="height:44px; width:auto;" onerror="this.style.display='none'">
+            <img id="auth-logo-2" src="../logo-dark.png" alt="PuntoStock" style="height:44px; width:auto;" onerror="this.style.display='none'">
           </div>
           <h1 style="font-size:clamp(24px,4vw,36px); font-weight:900; letter-spacing:-1px; margin-bottom:10px; line-height:1.1;">
             Elegí tu plan
@@ -317,7 +317,7 @@ const Auth = {
     return `
       <div class="auth-card" style="max-width:480px;">
         <div style="margin-bottom:16px;">
-          <img id="auth-logo-3" src="logo-dark.png" alt="PuntoStock" style="height:36px; width:auto;" onerror="this.style.display='none'">
+          <img id="auth-logo-3" src="../logo-dark.png" alt="PuntoStock" style="height:36px; width:auto;" onerror="this.style.display='none'">
         </div>
 
         <!-- Plan elegido -->
