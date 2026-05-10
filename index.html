@@ -20,7 +20,7 @@
   <nav id="sidebar">
     <div class="sidebar-logo">
       <img id="sidebar-logo-img"
-        src="/logo-dark.png"
+        src="logo-dark.png"
         alt="PuntoStock"
         style="height:34px; width:auto;"
         onerror="this.style.display='none'">
@@ -32,7 +32,7 @@
           const img = document.getElementById('sidebar-logo-img');
           if (!img) return;
           const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-          img.src = isDark ? '/logo-dark.png' : '/logo-light.png';
+          img.src = isDark ? 'logo-dark.png' : 'logo-light.png';
         }
         updateLogo();
         new MutationObserver(updateLogo).observe(
