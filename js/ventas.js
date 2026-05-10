@@ -1113,17 +1113,232 @@ const Ventas = {
         if (p) p.stock -= item.cantidad;
       });
 
+      // Guardar datos de la venta para el ticket ANTES de limpiar el carrito
+      const ticketData = {
+        items:      [...this.cart],
+        subtotal, descPct, total, metodoPago,
+        fecha:      new Date(),
+        negocio:    PS.businessData?.name || 'Mi Negocio',
+        telefono:   PS.businessData?.phone || '',
+        direccion:  PS.businessData?.address || '',
+      };
+
       this.cart = [];
       this.renderCart();
       this.updateTotals();
       this.renderProductos();
-      showToast(`Venta registrada — ${formatPrice(total)}`, 'success');
+
+      // Mostrar modal de ticket
+      this.mostrarTicket(ticketData);
 
     } catch (e) {
       console.error(e);
       showToast('Error al registrar la venta: ' + e.message, 'error');
       btn.disabled = false;
       btn.textContent = 'Cobrar';
+    }
+  },
+
+  // ── Ticket post-venta ─────────────────────────────────────
+  mostrarTicket(d) {
+    const ahora  = d.fecha.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const lineas = d.items.map(i =>
+      `${i.nombre.padEnd(20).slice(0,20)}  ${String(i.esPeso ? '1' : i.cantidad).padStart(3)}  ${formatPrice(i.esPeso ? i.precio : i.precio * i.cantidad)}`
+    ).join('\n');
+
+    const ticketHTML = `
+      <div id="ticket-print-area" style="
+        background:#fff; color:#000; font-family:'Courier New', monospace;
+        width:280px; margin:0 auto; padding:16px 12px;
+        border-radius:4px; font-size:12px; line-height:1.5;">
+
+        <!-- Cabecera -->
+        <div style="text-align:center; margin-bottom:10px;">
+          <div style="font-size:18px; font-weight:900; letter-spacing:1px;">${d.negocio}</div>
+          ${d.telefono ? `<div style="font-size:11px;">${d.telefono}</div>` : ''}
+          ${d.direccion ? `<div style="font-size:11px;">${d.direccion}</div>` : ''}
+          <div style="font-size:10px; color:#555; margin-top:4px;">${ahora}</div>
+        </div>
+
+        <div style="border-top:1px dashed #999; margin:8px 0;"></div>
+
+        <!-- Items -->
+        <div style="font-size:11px; white-space:pre; overflow:hidden;">
+Producto             Cant  Precio
+─────────────────────────────────
+${lineas}
+        </div>
+
+        <div style="border-top:1px dashed #999; margin:8px 0;"></div>
+
+        <!-- Totales -->
+        <div style="display:flex; justify-content:space-between; font-size:12px;">
+          <span>Subtotal</span><span>${formatPrice(d.subtotal)}</span>
+        </div>
+        ${d.descPct > 0 ? `
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:#666;">
+          <span>Descuento ${d.descPct}%</span>
+          <span>-${formatPrice(d.subtotal * d.descPct / 100)}</span>
+        </div>` : ''}
+        <div style="display:flex; justify-content:space-between; font-size:15px; font-weight:900; margin-top:6px; border-top:2px solid #000; padding-top:6px;">
+          <span>TOTAL</span><span>${formatPrice(d.total)}</span>
+        </div>
+        <div style="font-size:11px; color:#555; margin-top:4px;">
+          Pago: ${d.metodoPago}
+        </div>
+
+        <div style="border-top:1px dashed #999; margin:10px 0;"></div>
+        <div style="text-align:center; font-size:10px; color:#777;">
+          ¡Gracias por su compra!<br>
+          Powered by PuntoStock
+        </div>
+      </div>
+    `;
+
+    // Texto para WhatsApp
+    const waTexto = encodeURIComponent(
+      `🧾 *${d.negocio}*\n` +
+      `📅 ${ahora}\n\n` +
+      d.items.map(i => `• ${i.nombre} x${i.esPeso ? '1' : i.cantidad} — ${formatPrice(i.esPeso ? i.precio : i.precio * i.cantidad)}`).join('\n') +
+      `\n${'─'.repeat(30)}\n` +
+      (d.descPct > 0 ? `Subtotal: ${formatPrice(d.subtotal)}\nDescuento: ${d.descPct}%\n` : '') +
+      `*TOTAL: ${formatPrice(d.total)}*\n` +
+      `Pago: ${d.metodoPago}\n\n_¡Gracias por su compra!_`
+    );
+
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title" style="display:flex;align-items:center;gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          Ticket de venta
+        </h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+
+      <!-- Ticket visual -->
+      ${ticketHTML}
+
+      <!-- Acciones -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:16px;">
+
+        <!-- Imprimir -->
+        <button onclick="Ventas.imprimirTicket()"
+          style="display:flex; flex-direction:column; align-items:center; gap:6px;
+                 padding:12px 8px; background:var(--bg-card); border:1px solid var(--border);
+                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
+                 font-family:var(--font); font-size:11px; font-weight:600; transition:all 0.2s;"
+          onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
+          onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          Imprimir
+        </button>
+
+        <!-- WhatsApp -->
+        <a href="https://wa.me/?text=${waTexto}" target="_blank" rel="noopener"
+          style="display:flex; flex-direction:column; align-items:center; gap:6px;
+                 padding:12px 8px; background:var(--bg-card); border:1px solid var(--border);
+                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
+                 font-family:var(--font); font-size:11px; font-weight:600; transition:all 0.2s;
+                 text-decoration:none;"
+          onmouseenter="this.style.borderColor='#25D366';this.style.color='#25D366'"
+          onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">
+          <!-- WhatsApp SVG oficial -->
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.43-1.77A13.93 13.93 0 0 0 16 30c7.72 0 14-6.28 14-14S23.72 2 16 2zm0 25.4a11.4 11.4 0 0 1-5.8-1.58l-.42-.25-4.4 1.05 1.08-4.28-.28-.44A11.37 11.37 0 0 1 4.6 16C4.6 9.71 9.71 4.6 16 4.6S27.4 9.71 27.4 16 22.29 27.4 16 27.4zm6.26-8.5c-.34-.17-2.02-.99-2.33-1.1-.31-.12-.54-.17-.77.17-.23.34-.88 1.1-1.08 1.33-.2.22-.4.25-.74.08-.34-.17-1.43-.53-2.73-1.68-1.01-.9-1.69-2.01-1.88-2.35-.2-.34-.02-.52.15-.69.15-.15.34-.39.51-.59.17-.2.23-.34.34-.57.12-.23.06-.43-.03-.6-.08-.17-.77-1.85-1.05-2.54-.28-.67-.56-.58-.77-.59l-.65-.01c-.23 0-.6.08-.91.4-.31.31-1.19 1.16-1.19 2.84s1.22 3.29 1.39 3.52c.17.22 2.4 3.66 5.82 5.13.81.35 1.45.56 1.94.72.82.26 1.56.22 2.15.13.66-.1 2.02-.82 2.31-1.62.28-.8.28-1.48.2-1.62-.09-.14-.31-.22-.65-.39z"/>
+          </svg>
+          WhatsApp
+        </a>
+
+        <!-- Descargar imagen -->
+        <button onclick="Ventas.descargarTicketImagen()"
+          style="display:flex; flex-direction:column; align-items:center; gap:6px;
+                 padding:12px 8px; background:var(--bg-card); border:1px solid var(--border);
+                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
+                 font-family:var(--font); font-size:11px; font-weight:600; transition:all 0.2s;"
+          onmouseenter="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
+          onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          Descargar
+        </button>
+      </div>
+
+      <button class="btn btn-ghost w-full mt-8" onclick="closeModal()" style="font-size:12px;">
+        Cerrar sin imprimir
+      </button>
+    `);
+  },
+
+  imprimirTicket() {
+    const area = document.getElementById('ticket-print-area');
+    if (!area) return;
+    const win = window.open('', '_blank', 'width=340,height=600');
+    win.document.write(`
+      <!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>Ticket PuntoStock</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#fff; display:flex; justify-content:center; padding:10px; }
+        @media print { body { padding:0; } button { display:none; } }
+      </style>
+      </head><body>
+      ${area.outerHTML}
+      <div style="text-align:center; margin-top:12px;">
+        <button onclick="window.print(); window.close();"
+          style="padding:10px 24px; background:#7ED321; color:#000; border:none;
+                 border-radius:6px; font-size:14px; font-weight:700; cursor:pointer;">
+          🖨 Imprimir
+        </button>
+      </div>
+      </body></html>
+    `);
+    win.document.close();
+    setTimeout(() => win.print(), 400);
+  },
+
+  async descargarTicketImagen() {
+    const area = document.getElementById('ticket-print-area');
+    if (!area) return;
+
+    // Cargar html2canvas si no está
+    if (!window.html2canvas) {
+      showToast('Preparando imagen...', 'info', 2000);
+      await new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload  = resolve;
+        s.onerror = () => { showToast('Error al generar imagen', 'error'); resolve(); };
+        document.head.appendChild(s);
+      });
+    }
+    if (!window.html2canvas) return;
+
+    try {
+      const canvas = await html2canvas(area, {
+        backgroundColor: '#ffffff',
+        scale: 2, // alta resolución
+        useCORS: true,
+        logging: false
+      });
+      const link = document.createElement('a');
+      link.download = `ticket-${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('Imagen descargada', 'success');
+    } catch(e) {
+      showToast('Error al generar imagen: ' + e.message, 'error');
     }
   },
 

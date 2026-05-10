@@ -19,38 +19,29 @@
   <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-logo">
-      <!-- Logo SVG: ícono P/pin + texto adaptativo al tema -->
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" style="height:36px; width:auto; overflow:visible;" aria-label="PuntoStock">
+      <!-- Ícono: SVG puro (solo el pin, sin texto) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 38" style="height:36px; width:auto; flex-shrink:0;">
         <defs>
-          <linearGradient id="psGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id="psG" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stop-color="#9AE840"/>
             <stop offset="100%" stop-color="#5BA80F"/>
           </linearGradient>
         </defs>
-
-        <!-- Ícono: P con forma de pin de mapa -->
-        <!-- Semicírculo superior (la cabeza del P) -->
-        <path d="M4,20 A14,14 0 1,1 32,20" fill="url(#psGrad)"/>
-        <!-- Cuerpo vertical del pin hacia abajo -->
-        <path d="M4,20 L18,38 L32,20" fill="url(#psGrad)"/>
-        <!-- Agujero blanco grande interior -->
-        <circle cx="18" cy="16" r="7.5" fill="white" opacity="0.93"/>
-        <!-- Punto verde interior (el "ojo" del pin) -->
-        <circle cx="18" cy="16" r="3.2" fill="url(#psGrad)"/>
-
-        <!-- Texto "Punto" — color adaptativo al tema -->
-        <text x="40" y="21"
-          font-family="Outfit, 'Segoe UI', system-ui, sans-serif"
-          font-weight="800" font-size="19"
-          fill="var(--text-primary)">Punto</text>
-
-        <!-- Texto "Stock" — siempre verde -->
-        <text x="101" y="21"
-          font-family="Outfit, 'Segoe UI', system-ui, sans-serif"
-          font-weight="800" font-size="19"
-          fill="var(--green-primary)">Stock</text>
+        <!-- Pin: círculo superior + punta inferior -->
+        <path d="M16,2 A14,14 0 1,1 16,30 A14,14 0 1,1 16,2 Z" fill="url(#psG)"/>
+        <path d="M9,24 L16,37 L23,24 Z" fill="url(#psG)"/>
+        <!-- Agujero blanco -->
+        <circle cx="16" cy="15" r="7.5" fill="white" opacity="0.93"/>
+        <!-- Punto interior verde -->
+        <circle cx="16" cy="15" r="3.2" fill="url(#psG)"/>
       </svg>
+
+      <!-- Texto: HTML puro, hereda CSS vars sin problema -->
+      <span style="font-family:var(--font); font-size:16px; font-weight:800; letter-spacing:-0.3px; line-height:1;">
+        <span style="color:var(--text-primary);">Punto</span><span style="color:var(--green-primary);">Stock</span>
+      </span>
     </div>
+
 
     <div class="sidebar-business">
       <div class="biz-name" id="sidebar-biz-name">Cargando...</div>

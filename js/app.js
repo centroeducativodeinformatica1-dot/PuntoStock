@@ -355,9 +355,15 @@ function closeModal() {
 
 // ── Formatters ────────────────────────────────────────────────
 function formatPrice(n) {
-  const num = Number(n || 0);
-  // Pesos argentinos: separador de miles con punto, sin decimales
-  return '$\u202F' + Math.round(num).toLocaleString('es-AR');
+  // Pesos argentinos: $95.000 — punto miles, sin decimales, sin espacio
+  const num = Math.round(Number(n || 0));
+  // Forzar separador de miles con punto (es-AR) de forma explícita
+  const formatted = num.toLocaleString('es-AR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    useGrouping: true
+  });
+  return '$' + formatted;
 }
 
 function formatDate(ts) {
