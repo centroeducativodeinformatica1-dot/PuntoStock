@@ -676,15 +676,37 @@ const Ventas = {
         () => {} // onError silencioso — es normal no leer cada frame
       );
 
-      // Después de iniciar, intentar linterna
+      // Después de iniciar, intentar linterna con dos métodos
       try {
-        const track = scanner?.getRunningTrackCameraCapabilities?.();
+        await new Promise(r => setTimeout(r, 600)); // dar tiempo al stream a iniciar
         const torchBtn = document.getElementById('btn-torch');
-        if (torchBtn) {
-          const hasTorch = track?.torchFeature?.isSupported?.() ?? false;
-          torchBtn.style.display = hasTorch ? 'flex' : 'none';
-          this._qrTrackCaps = track;
+        let hasTorch = false;
+
+        // Método 1: html5-qrcode API
+        try {
+          const track = scanner?.getRunningTrackCameraCapabilities?.();
+          if (track?.torchFeature?.isSupported?.()) {
+            hasTorch = true;
+            this._qrTrackCaps = track;
+          }
+        } catch(e) {}
+
+        // Método 2: fallback directo al MediaStreamTrack
+        if (!hasTorch) {
+          try {
+            const videoEl = document.querySelector('#qr-reader-internal video');
+            if (videoEl?.srcObject) {
+              const vtrack = videoEl.srcObject.getVideoTracks()[0];
+              const caps = vtrack?.getCapabilities?.() || {};
+              if (caps.torch) {
+                hasTorch = true;
+                this._videoTrack = vtrack;
+              }
+            }
+          } catch(e) {}
         }
+
+        if (torchBtn) torchBtn.style.display = hasTorch ? 'flex' : 'none';
       } catch(e) {}
 
       if (status) status.textContent = 'Apuntá el código de barras al recuadro';
@@ -717,10 +739,15 @@ const Ventas = {
     const torchLabel = document.getElementById('torch-label');
     try {
       this.torchOn = !this.torchOn;
-      if (this._qrTrackCaps) {
+      // Método 1: html5-qrcode API
+      if (this._qrTrackCaps?.torchFeature?.isSupported?.()) {
         await this._qrTrackCaps.torchFeature.apply(this.torchOn);
-      } else if (this._videoTrack) {
+      }
+      // Método 2: fallback MediaStreamTrack nativo
+      else if (this._videoTrack) {
         await this._videoTrack.applyConstraints({ advanced: [{ torch: this.torchOn }] });
+      } else {
+        throw new Error('no torch');
       }
       if (torchBtn) {
         torchBtn.style.background  = this.torchOn ? 'rgba(126,211,33,0.85)' : 'rgba(0,0,0,0.75)';

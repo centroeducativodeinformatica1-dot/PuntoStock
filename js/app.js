@@ -354,7 +354,11 @@ function closeModal() {
 }
 
 // ── Formatters ────────────────────────────────────────────────
-function formatPrice(n) { return '$' + Number(n || 0).toLocaleString('es-AR'); }
+function formatPrice(n) {
+  const num = Number(n || 0);
+  // Pesos argentinos: separador de miles con punto, sin decimales
+  return '$\u202F' + Math.round(num).toLocaleString('es-AR');
+}
 
 function formatDate(ts) {
   if (!ts) return '-';

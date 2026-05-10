@@ -43,6 +43,30 @@ const Stock = {
           <button class="btn btn-primary btn-sm" onclick="Stock.openModal()" style="white-space:nowrap;">
             + Nuevo
           </button>
+          <!-- Exportar Excel -->
+          <button class="btn btn-secondary btn-sm" onclick="Stock.exportarExcel()" title="Exportar stock a Excel"
+            style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <polyline points="8 13 10.5 17 13 13"/>
+              <line x1="10.5" y1="17" x2="10.5" y2="11"/>
+            </svg>
+            Exportar
+          </button>
+          <!-- Importar Excel -->
+          <label class="btn btn-secondary btn-sm" title="Importar productos desde Excel"
+            style="display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; margin:0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <polyline points="8 15 10.5 11 13 15"/>
+              <line x1="10.5" y1="11" x2="10.5" y2="17"/>
+            </svg>
+            Importar
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none;"
+              onchange="Stock.importarExcel(this)">
+          </label>
         </div>
       </div>
 
@@ -794,5 +818,229 @@ const Stock = {
         osc.stop(now + offset + 0.1);
       });
     } catch (e) { /* sin audio = ok */ }
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // EXPORTAR A EXCEL
+  // ══════════════════════════════════════════════════════════
+  async exportarExcel() {
+    if (this.productos.length === 0) {
+      showToast('No hay productos para exportar', 'warning'); return;
+    }
+    // Cargar SheetJS si no está
+    if (!window.XLSX) {
+      showToast('Preparando exportación...', 'info', 1500);
+      await new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = () => { showToast('Error al cargar exportador', 'error'); resolve(); };
+        document.head.appendChild(s);
+      });
+    }
+    if (!window.XLSX) return;
+
+    const filas = this.productos.map(p => ({
+      'Nombre':        p.nombre || '',
+      'Código SKU':    p.codigo || '',
+      'Código Barras': p.codigoBarra || '',
+      'Categoría':     p.categoria || '',
+      'Precio Venta':  p.precio || 0,
+      'Precio Costo':  p.precioCosto || 0,
+      'Stock':         p.unidad === 'kg' || p.unidad === 'g' ? 'Por peso' : (p.stock || 0),
+      'Unidad':        p.unidad || 'unidad',
+      'Descripción':   p.descripcion || '',
+      'Activo':        p.activo !== false ? 'Sí' : 'No'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(filas);
+
+    // Ancho de columnas
+    ws['!cols'] = [
+      {wch:28},{wch:14},{wch:16},{wch:16},
+      {wch:14},{wch:14},{wch:10},{wch:10},{wch:30},{wch:8}
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+
+    const fecha = new Date().toLocaleDateString('es-AR').replace(/\//g,'-');
+    XLSX.writeFile(wb, `PuntoStock_${fecha}.xlsx`);
+    showToast(`${this.productos.length} productos exportados`, 'success');
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // IMPORTAR DESDE EXCEL
+  // ══════════════════════════════════════════════════════════
+  async importarExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = ''; // reset para poder reimportar el mismo archivo
+
+    if (!window.XLSX) {
+      showToast('Cargando importador...', 'info', 1500);
+      await new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = () => { showToast('Error al cargar importador', 'error'); resolve(); };
+        document.head.appendChild(s);
+      });
+    }
+    if (!window.XLSX) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb   = XLSX.read(data, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+
+        if (rows.length === 0) { showToast('El archivo está vacío', 'warning'); return; }
+
+        // Previsualización antes de confirmar
+        this._previewImport(rows);
+
+      } catch (err) {
+        console.error(err);
+        showToast('No se pudo leer el archivo: ' + err.message, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  },
+
+  _previewImport(rows) {
+    // Mapear columnas flexibles (acepta nombres en español o inglés)
+    const get = (row, ...keys) => {
+      for (const k of keys) {
+        const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/\s/g,'') === k.toLowerCase().replace(/\s/g,''));
+        if (found && row[found] !== undefined && row[found] !== '') return row[found];
+      }
+      return '';
+    };
+
+    const productos = rows.map(row => ({
+      nombre:      String(get(row, 'Nombre','name') || '').trim(),
+      codigo:      String(get(row, 'CódigoSKU','sku','codigo') || '').trim(),
+      codigoBarra: String(get(row, 'CódigoBarras','barcode','codigobarras') || '').trim(),
+      categoria:   String(get(row, 'Categoría','categoria','category') || '').trim(),
+      precio:      parseFloat(String(get(row, 'PrecioVenta','precio','price') || 0).replace(/[$.]/g,'').replace(',','.')) || 0,
+      precioCosto: parseFloat(String(get(row, 'PrecioCosto','costo','cost') || 0).replace(/[$.]/g,'').replace(',','.')) || 0,
+      stock:       isNaN(parseInt(get(row, 'Stock','stock'))) ? 0 : parseInt(get(row, 'Stock','stock')),
+      unidad:      String(get(row, 'Unidad','unit','unidad') || 'unidad').trim().toLowerCase(),
+      descripcion: String(get(row, 'Descripción','descripcion','description') || '').trim(),
+      activo:      String(get(row, 'Activo','active','activo') || 'Sí').toLowerCase() !== 'no'
+    })).filter(p => p.nombre); // ignorar filas sin nombre
+
+    if (productos.length === 0) {
+      showToast('No se encontraron productos válidos. Verificá que la columna "Nombre" exista.', 'warning');
+      return;
+    }
+
+    const preview = productos.slice(0, 5);
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title" style="display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;background:var(--green-muted);border-radius:8px;
+                      display:flex;align-items:center;justify-content:center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <polyline points="8 15 10.5 11 13 15"/>
+              <line x1="10.5" y1="11" x2="10.5" y2="17"/>
+            </svg>
+          </div>
+          Importar ${productos.length} productos
+        </h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+
+      <div style="background:rgba(126,211,33,0.06);border:1px solid var(--border-green);
+                  border-radius:var(--radius-md);padding:12px 14px;margin-bottom:16px;font-size:13px;">
+        <strong>${productos.length}</strong> productos detectados.
+        ${productos.length > 5 ? `Se muestran los primeros 5 como vista previa.` : ''}
+      </div>
+
+      <div class="table-wrapper" style="max-height:260px;overflow-y:auto;margin-bottom:16px;">
+        <table>
+          <thead><tr>
+            <th>Nombre</th><th>Categoría</th><th>Precio</th><th>Stock</th>
+          </tr></thead>
+          <tbody>
+            ${preview.map(p => `
+              <tr>
+                <td style="font-weight:600;">${p.nombre}</td>
+                <td><span class="badge badge-muted">${p.categoria || '—'}</span></td>
+                <td class="td-mono td-green">$\u202F${Math.round(p.precio).toLocaleString('es-AR')}</td>
+                <td class="td-mono">${p.unidad === 'kg' || p.unidad === 'g' ? 'Peso' : p.stock}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;">
+        ⚠ Los productos se agregarán al stock existente. Los que ya existen con el mismo nombre se saltearán.
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Stock._confirmarImport(${JSON.stringify(productos).split('"').join('&quot;')})">
+          Importar ${productos.length} productos
+        </button>
+      </div>
+    `);
+
+    // Guardar en instancia para el confirm
+    this._pendingImport = productos;
+    // Reemplazar el onclick para evitar el JSON inline grande
+    setTimeout(() => {
+      const btn = document.querySelector('.modal-footer .btn-primary');
+      if (btn) btn.onclick = () => this._confirmarImport(this._pendingImport);
+    }, 50);
+  },
+
+  async _confirmarImport(productos) {
+    closeModal();
+    showToast(`Importando ${productos.length} productos...`, 'info', 4000);
+
+    try {
+      const bizRef  = db.collection('businesses').doc(PS.businessId);
+      const batch   = db.batch();
+      let count = 0;
+
+      // Obtener nombres existentes para no duplicar
+      const existentes = new Set(this.productos.map(p => p.nombre.toLowerCase().trim()));
+
+      for (const p of productos) {
+        if (existentes.has(p.nombre.toLowerCase())) continue; // skip duplicados
+        const ref = bizRef.collection('productos').doc();
+        batch.set(ref, {
+          nombre:      p.nombre,
+          codigo:      p.codigo,
+          codigoBarra: p.codigoBarra,
+          categoria:   p.categoria,
+          precio:      p.precio,
+          precioCosto: p.precioCosto,
+          stock:       p.stock,
+          unidad:      p.unidad || 'unidad',
+          descripcion: p.descripcion,
+          activo:      p.activo,
+          createdAt:   firebase.firestore.FieldValue.serverTimestamp()
+        });
+        count++;
+        // Firestore batch limit = 500
+        if (count % 490 === 0) { await batch.commit(); }
+      }
+
+      await batch.commit();
+      showToast(`✓ ${count} productos importados correctamente`, 'success');
+      await this.load();
+
+    } catch (e) {
+      console.error(e);
+      showToast('Error al importar: ' + e.message, 'error');
+    }
   }
 };
