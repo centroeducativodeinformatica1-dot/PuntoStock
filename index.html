@@ -26,22 +26,6 @@
         onerror="this.style.display='none'">
     </div>
 
-    <script>
-      (function() {
-        function updateLogo() {
-          const img = document.getElementById('sidebar-logo-img');
-          if (!img) return;
-          const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-          img.src = isDark ? 'logo-dark.png' : 'logo-light.png';
-        }
-        updateLogo();
-        new MutationObserver(updateLogo).observe(
-          document.documentElement,
-          { attributes: true, attributeFilter: ['data-theme'] }
-        );
-      })();
-    </script>
-
 
     <div class="sidebar-business">
       <div class="biz-name" id="sidebar-biz-name">Cargando...</div>

@@ -288,10 +288,19 @@ const Theme = {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('ps_theme', theme);
     this.updateIcon();
+    this.updateLogos();
   },
 
   toggle() {
     this.apply(this.current === 'dark' ? 'light' : 'dark');
+  },
+
+  // Actualiza TODOS los logos de la página (sidebar + auth)
+  updateLogos() {
+    const src = this.current === 'dark' ? 'logo-dark.png' : 'logo-light.png';
+    document.querySelectorAll('img[id^="auth-logo-"], #sidebar-logo-img').forEach(img => {
+      img.src = src;
+    });
   },
 
   updateIcon() {
