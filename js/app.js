@@ -362,6 +362,20 @@ const Theme = {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('ps_theme', theme);
     this.updateIcon();
+    this.updateLogos(theme);
+  },
+
+  updateLogos(theme) {
+    // Determinar si estamos en /app/ o en la raíz
+    const isApp = window.location.pathname.includes('/app');
+    const base  = isApp ? '../' : '';
+    const src   = theme === 'light'
+      ? `${base}logo-light.png`
+      : `${base}logo-dark.png`;
+
+    document.querySelectorAll('.ps-logo').forEach(img => {
+      img.src = src;
+    });
   },
 
   toggle() {

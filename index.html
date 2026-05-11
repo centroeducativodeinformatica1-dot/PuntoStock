@@ -190,7 +190,7 @@
 
 <nav id="navbar">
   <a class="nav-logo" href="#">
-    <img src="logo.png" alt="PuntoStock" style="height:36px; width:auto;">
+    <img src="logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:36px; width:auto;">
   </a>
   <ul class="nav-links">
     <li><a href="#funciones">Funciones</a></li>
@@ -240,7 +240,7 @@
         <div class="mockup-content">
           <div class="mockup-sidebar">
             <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:16px;">
-              <img src="logo.png" alt="PuntoStock" style="height:28px; width:auto;">
+              <img src="logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:28px; width:auto;">
             </div>
             <div class="mockup-nav-item active"><div class="mockup-nav-dot"></div>Dashboard</div>
             <div class="mockup-nav-item"><div class="mockup-nav-dot"></div>Nueva venta</div>
@@ -456,7 +456,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <div style="display:flex;align-items:center;gap:10px;">
-        <img src="logo.png" alt="PuntoStock" style="height:32px; width:auto;">
+        <img src="logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:32px; width:auto;">
       </div>
       <p>Control Simple. Negocios en Orden. Sistema de ventas y stock para emprendedores.</p>
     </div>
@@ -503,6 +503,11 @@
   window.addEventListener('scroll', () => {
     document.getElementById('navbar').style.borderBottomColor =
       window.scrollY > 20 ? 'rgba(126,211,33,0.12)' : 'rgba(255,255,255,0.06)';
+  });
+
+  // Aplicar logo correcto al cargar (la landing siempre es tema oscuro)
+  document.querySelectorAll('.ps-logo').forEach(img => {
+    img.src = 'logo-dark.png';
   });
 </script>
 </body>

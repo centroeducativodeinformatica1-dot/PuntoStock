@@ -19,7 +19,7 @@
   <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-logo">
-      <img src="../logo.png" alt="PuntoStock" style="height:34px; width:auto;">
+      <img src="../logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:34px; width:auto;">
     </div>
 
     <div class="sidebar-business">
@@ -432,6 +432,12 @@
   });
 
   PS.init();
+
+  // Aplicar logo correcto al cargar según tema guardado
+  const savedTheme = localStorage.getItem('ps_theme') || 'dark';
+  document.querySelectorAll('.ps-logo').forEach(img => {
+    img.src = savedTheme === 'light' ? '../logo-light.png' : '../logo-dark.png';
+  });
 </script>
 </body>
 </html>

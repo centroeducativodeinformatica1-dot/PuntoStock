@@ -96,7 +96,12 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--green-dark); }
 
-/* ── Theme toggle button ── */
+/* ── Logo según tema ── */
+[data-theme="light"] .ps-logo { content: url('../logo-light.png'); }
+[data-theme="dark"]  .ps-logo { content: url('../logo-dark.png'); }
+
+/* Para la landing (sin ../) */
+.landing-logo[data-theme="light"] { content: url('logo-light.png'); }
 .theme-btn {
   width: 34px; height: 34px;
   background: var(--bg-card);

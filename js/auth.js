@@ -70,7 +70,7 @@ const Auth = {
     return `
       <div class="auth-card">
         <div class="auth-logo" style="justify-content:center;">
-          <img src="../logo.png" alt="PuntoStock" style="height:40px; width:auto;">
+          <img src="../logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:40px; width:auto;">
         </div>
         <h2 class="auth-title">Bienvenido de nuevo</h2>
         <p class="auth-subtitle">Ingresá a tu cuenta para continuar</p>
@@ -117,7 +117,7 @@ const Auth = {
         <!-- Header -->
         <div style="text-align:center; margin-bottom:40px; max-width:600px;">
           <div style="margin-bottom:20px; text-align:center;">
-            <img src="../logo.png" alt="PuntoStock" style="height:44px; width:auto;">
+            <img src="../logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:44px; width:auto;">
           </div>
           <h1 style="font-size:clamp(24px,4vw,36px); font-weight:900; letter-spacing:-1px; margin-bottom:10px; line-height:1.1;">
             Elegí tu plan
@@ -315,7 +315,7 @@ const Auth = {
     return `
       <div class="auth-card" style="max-width:480px;">
         <div style="margin-bottom:16px;">
-          <img src="../logo.png" alt="PuntoStock" style="height:36px; width:auto;">
+          <img src="../logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:36px; width:auto;">
         </div>
 
         <!-- Plan elegido -->
