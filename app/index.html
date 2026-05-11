@@ -19,19 +19,19 @@
   <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-logo">
-      <img id="sidebar-logo-img"
-        src="../logo-dark.png"
-        alt="PuntoStock"
-        style="height:34px; width:auto;"
-        onerror="this.style.display='none'">
+      <img src="../logo.png" alt="PuntoStock" style="height:34px; width:auto;">
     </div>
-
 
     <div class="sidebar-business">
       <div class="biz-name" id="sidebar-biz-name">Cargando...</div>
       <div class="biz-plan" id="sidebar-biz-plan">
         <span style="color:var(--green-primary);">●</span> Sistema activo
       </div>
+    </div>
+
+    <!-- Selector multi-negocio (oculto si solo tiene 1) -->
+    <div id="sidebar-biz-switcher" style="display:none; padding:10px 12px;
+         border-bottom:1px solid var(--border); background:var(--bg-card);">
     </div>
 
     <div class="sidebar-nav">
@@ -249,6 +249,9 @@
   <div class="drawer-content">
     <div class="drawer-handle"></div>
 
+    <!-- Selector multi-negocio en mobile -->
+    <div id="drawer-biz-switcher" style="display:none; margin-bottom:16px;"></div>
+
     <div class="drawer-title">Reportes y gestión</div>
     <div class="drawer-grid">
 
@@ -361,6 +364,43 @@
     const adminItem = document.getElementById('drawer-admin-item');
     if (adminItem) adminItem.style.display = PS.isAdmin ? 'flex' : 'none';
     updateDrawerThemeLabel();
+
+    // Selector multi-negocio en drawer
+    const switcherEl = document.getElementById('drawer-biz-switcher');
+    const negocios = PS.allBusinesses || [];
+    if (switcherEl && negocios.length > 1) {
+      switcherEl.style.display = 'block';
+      switcherEl.innerHTML = `
+        <div style="font-size:10px; font-weight:700; color:var(--text-muted);
+                    text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">
+          Cambiar negocio
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          ${negocios.map(biz => `
+            <div onclick="PS.cambiarNegocio('${biz.id}'); closeDrawer();"
+              style="display:flex; align-items:center; gap:10px; padding:10px 12px;
+                     border-radius:var(--radius-md); cursor:pointer;
+                     background:${biz.id === PS.businessId ? 'var(--green-muted)' : 'var(--bg-card)'};
+                     border:1px solid ${biz.id === PS.businessId ? 'var(--border-green)' : 'var(--border)'};">
+              <div style="width:8px; height:8px; border-radius:50%;
+                           background:${biz.id === PS.businessId ? 'var(--green-primary)' : 'var(--text-muted)'}; flex-shrink:0;"></div>
+              <span style="font-size:13px; font-weight:${biz.id === PS.businessId ? '700' : '500'};
+                            color:${biz.id === PS.businessId ? 'var(--green-primary)' : 'var(--text-secondary)'};
+                            flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                ${biz.name}
+              </span>
+              ${biz.id === PS.businessId ? `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="3">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (switcherEl) {
+      switcherEl.style.display = 'none';
+    }
+
     document.getElementById('mobile-more-drawer').classList.add('open');
     document.body.style.overflow = 'hidden';
   }

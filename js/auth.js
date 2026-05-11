@@ -63,8 +63,6 @@ const Auth = {
     if (mode === 'login')    screen.innerHTML = this.loginHTML();
     if (mode === 'planes')   screen.innerHTML = this.planesHTML();
     if (mode === 'register') screen.innerHTML = this.registerHTML();
-    // Aplicar logo según tema actual
-    if (window.Theme) Theme.updateLogos();
   },
 
   // ── LOGIN ─────────────────────────────────────────────────
@@ -72,7 +70,7 @@ const Auth = {
     return `
       <div class="auth-card">
         <div class="auth-logo" style="justify-content:center;">
-          <img id="auth-logo-1" src="../logo-dark.png" alt="PuntoStock" style="height:40px; width:auto;" onerror="this.style.display='none'">
+          <img src="../logo.png" alt="PuntoStock" style="height:40px; width:auto;">
         </div>
         <h2 class="auth-title">Bienvenido de nuevo</h2>
         <p class="auth-subtitle">Ingresá a tu cuenta para continuar</p>
@@ -119,7 +117,7 @@ const Auth = {
         <!-- Header -->
         <div style="text-align:center; margin-bottom:40px; max-width:600px;">
           <div style="margin-bottom:20px; text-align:center;">
-            <img id="auth-logo-2" src="../logo-dark.png" alt="PuntoStock" style="height:44px; width:auto;" onerror="this.style.display='none'">
+            <img src="../logo.png" alt="PuntoStock" style="height:44px; width:auto;">
           </div>
           <h1 style="font-size:clamp(24px,4vw,36px); font-weight:900; letter-spacing:-1px; margin-bottom:10px; line-height:1.1;">
             Elegí tu plan
@@ -317,7 +315,7 @@ const Auth = {
     return `
       <div class="auth-card" style="max-width:480px;">
         <div style="margin-bottom:16px;">
-          <img id="auth-logo-3" src="../logo-dark.png" alt="PuntoStock" style="height:36px; width:auto;" onerror="this.style.display='none'">
+          <img src="../logo.png" alt="PuntoStock" style="height:36px; width:auto;">
         </div>
 
         <!-- Plan elegido -->
@@ -443,56 +441,65 @@ const Auth = {
     try {
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       const uid  = cred.user.uid;
-      const batch = db.batch();
 
-      // Negocio principal
-      const bizData = {
+      // ── Generar IDs de todos los negocios ANTES del batch ──
+      const bizIds = [uid]; // el principal siempre tiene el UID del owner
+      const extraRefs = [];
+      if (isMulti && cantBiz > 1) {
+        for (let i = 2; i <= cantBiz; i++) {
+          const ref = db.collection('businesses').doc(); // ID automático
+          extraRefs.push({ ref, numero: i });
+          bizIds.push(ref.id);
+        }
+      }
+
+      const batch = db.batch();
+      const trialEnds = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      // ── Negocio principal (businessId = uid del owner) ──
+      batch.set(db.collection('businesses').doc(uid), {
         name: bizName,
         ownerName: name,
+        ownerUid: uid,
         email, phone,
+        numero: 1,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         active: true,
         plan: 'trial',
         planSolicitado: plan,
         cantidadNegocios: cantBiz,
-        trialEnds: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      };
+        trialEnds
+      });
 
-      batch.set(db.collection('businesses').doc(uid), bizData);
+      // ── Negocios adicionales (multi) ──
+      extraRefs.forEach(({ ref, numero }) => {
+        batch.set(ref, {
+          name: `${bizName} — Local ${numero}`,
+          ownerName: name,
+          ownerUid: uid,
+          email, phone,
+          numero,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          active: true,
+          plan: 'trial',
+          planSolicitado: plan,
+          cantidadNegocios: cantBiz,
+          trialEnds
+        });
+      });
 
-      // Usuario
+      // ── Usuario con TODOS los IDs correctamente vinculados ──
       batch.set(db.collection('users').doc(uid), {
-        businessId: uid,
-        businessIds: [uid],   // array para multi
+        businessId:  uid,          // negocio activo por defecto = el principal
+        businessIds: bizIds,       // array completo de todos sus negocios
         name, email,
         role: 'owner',
         plan, cantidadNegocios: cantBiz,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      // Si es multi, crear negocios adicionales vacíos
-      if (isMulti && cantBiz > 1) {
-        for (let i = 2; i <= cantBiz; i++) {
-          const extraRef = db.collection('businesses').doc();
-          batch.set(extraRef, {
-            name: `${bizName} — Negocio ${i}`,
-            ownerName: name,
-            email, phone,
-            ownerUid: uid,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            active: true,
-            plan: 'trial',
-            planSolicitado: plan,
-            trialEnds: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          });
-          // Agregar el ID al array del usuario
-          // (se actualiza después del batch)
-        }
-      }
-
       await batch.commit();
 
-      // Guardar plan seleccionado localmente para el popup
       sessionStorage.setItem('ps_plan_solicitado', plan);
       sessionStorage.setItem('ps_is_new_user', '1');
 

@@ -54,7 +54,7 @@ const Historial = {
         <div class="stat-card" style="padding:14px 16px;">
           <div class="stat-label">Ticket promedio</div>
           <div class="stat-value" style="font-size:22px;">
-            ${this.ventas.length ? formatPrice(totalVentas / this.ventas.length) : formatPrice(0)}
+            ${this.ventas.length ? formatPrice(totalVentas / this.ventas.length) : '$0'}
           </div>
         </div>
       </div>
@@ -662,7 +662,7 @@ const Caja = {
             <div class="card-title">Registrar cierre</div>
             <div class="form-group">
               <label>Efectivo en caja (contado físico)</label>
-              <input type="number" id="caja-efectivo-real" placeholder="0" min="0">
+              <input type="number" id="caja-efectivo-real" placeholder="$ 0" min="0">
             </div>
             <div class="form-group">
               <label>Notas del cierre</label>

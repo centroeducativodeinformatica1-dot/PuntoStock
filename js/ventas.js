@@ -14,11 +14,6 @@ const Ventas = {
   cameraStream: null,
   cameraActive: false,
   torchOn: false,
-  _html5QrCode: null,
-  _qrTrackCaps: null,
-  _videoTrack: null,
-  _scanInterval: null,
-  _scanRAF: null,
   _balanzaGramos: '',
   _balanzaProd: null,
   _balanzaPrecio: 0,
@@ -121,11 +116,8 @@ const Ventas = {
                        color:white; width:48px; height:48px; border-radius:12px;
                        cursor:pointer; display:none; flex-direction:column;
                        align-items:center; justify-content:center; gap:2px;
-                       transition:all 0.2s; line-height:1;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18h6"/><path d="M10 22h4"/>
-                  <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
-                </svg>
+                       transition:all 0.2s; font-size:20px; line-height:1;">
+                💡
                 <span id="torch-label" style="font-size:9px; font-weight:800; letter-spacing:0.5px;">OFF</span>
               </button>
               <!-- Cerrar cámara -->
@@ -583,7 +575,7 @@ const Ventas = {
   },
 
   // ════════════════════════════════════════════════════════
-  // CÁMARA — usa html5-qrcode (BarcodeDetector nativo + fallback)
+  // CÁMARA con linterna (torch)
   // ════════════════════════════════════════════════════════
   async toggleCamera() {
     this.cameraActive ? this.stopCamera() : await this.startCamera();
@@ -591,136 +583,57 @@ const Ventas = {
 
   async startCamera() {
     const container = document.getElementById('camera-container');
+    const video     = document.getElementById('camera-video');
     const btn       = document.getElementById('btn-camara');
     const status    = document.getElementById('camera-status');
-    if (!container) return;
+    if (!container || !video) return;
 
     try {
-      // Cargar html5-qrcode si no está disponible
-      if (!window.Html5Qrcode) {
-        if (status) status.textContent = 'Cargando lector...';
-        await this._loadHtml5QrCode();
-      }
-      if (!window.Html5Qrcode) {
-        showToast('No se pudo cargar el lector de códigos', 'error');
-        return;
-      }
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      };
 
-      // Limpiar instancia anterior
-      if (this._html5QrCode) {
-        try { await this._html5QrCode.stop(); } catch(e) {}
-        this._html5QrCode = null;
-      }
-      // Cerrar stream previo de detección de linterna
-      if (this._probeStream) {
-        this._probeStream.getTracks().forEach(t => t.stop());
-        this._probeStream = null;
-      }
-
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      this.cameraStream = stream;
       this.cameraActive = true;
+      this.torchOn = false;
+      video.srcObject = stream;
       container.style.display = 'block';
+
+      // Actualizar ícono botón cámara
       if (btn) {
         btn.style.borderColor = 'var(--green-primary)';
         btn.style.color       = 'var(--green-primary)';
         btn.style.background  = 'var(--green-muted)';
       }
 
-      // ── Detectar linterna ANTES de iniciar el scanner ──────
-      // Abrimos el stream nosotros para leer las capabilities
-      let deviceId = null;
-      try {
-        const probeStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }
-        });
-        this._probeStream = probeStream;
-        const vtrack = probeStream.getVideoTracks()[0];
-        const caps   = vtrack?.getCapabilities?.() || {};
-        deviceId     = vtrack?.getSettings?.()?.deviceId || null;
-
-        const torchBtn = document.getElementById('btn-torch');
-        if (caps.torch) {
-          // Linterna soportada — guardamos el track para usarlo
-          this._videoTrack = vtrack;
-          if (torchBtn) torchBtn.style.display = 'flex';
-        } else {
-          this._videoTrack = null;
-          if (torchBtn) torchBtn.style.display = 'none';
-        }
-        // Cerramos el probe stream — html5-qrcode abrirá el suyo
-        probeStream.getTracks().forEach(t => t.stop());
-        this._probeStream = null;
-      } catch(e) {
-        // Sin acceso a probe = sin linterna, seguimos igual
-        this._videoTrack = null;
+      // Verificar si el dispositivo soporta linterna
+      const track = stream.getVideoTracks()[0];
+      const caps  = track.getCapabilities?.() || {};
+      const torchBtn = document.getElementById('btn-torch');
+      if (torchBtn) {
+        // Mostrar solo si torch es soportado
+        torchBtn.style.display = caps.torch ? 'flex' : 'none';
       }
 
-      // ── Iniciar html5-qrcode ───────────────────────────────
-      const qrDivId = 'qr-reader-internal';
-      let qrDiv = document.getElementById(qrDivId);
-      if (!qrDiv) {
-        qrDiv = document.createElement('div');
-        qrDiv.id = qrDivId;
-        qrDiv.style.cssText = 'position:absolute;inset:0;z-index:1;';
-        container.insertBefore(qrDiv, container.firstChild);
+      // Guardar track para control de linterna
+      this._videoTrack = track;
+
+      // Cargar ZXing si no está cargado
+      if (!window.ZXing) {
+        if (status) status.textContent = 'Cargando lector de códigos...';
+        await this.loadZXing();
       }
-      qrDiv.innerHTML = '';
-
-      const scanner = new Html5Qrcode(qrDivId, { verbose: false });
-      this._html5QrCode = scanner;
-
-      let lastCode = '', lastTime = 0;
-      const onSuccess = (code) => {
-        const now = Date.now();
-        if (code === lastCode && now - lastTime < 2000) return;
-        lastCode = code; lastTime = now;
-        if (status) status.textContent = `✓ ${code}`;
-        this._beep();
-        this.stopCamera();
-        setTimeout(() => this.addByCode(code), 80);
-      };
-
-      const config = {
-        fps: 10,
-        qrbox: { width: 220, height: 90 },
-        aspectRatio: 1.7,
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,  Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.QR_CODE,  Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.DATA_MATRIX,
-        ]
-      };
-
-      // Usar deviceId específico si lo tenemos, sino facingMode
-      const cameraConfig = deviceId
-        ? { deviceId: { exact: deviceId } }
-        : { facingMode: 'environment' };
-
-      await scanner.start(cameraConfig, config, onSuccess, () => {});
-
-      // Tras iniciar, intentar capturar el track interno del scanner
-      // para que toggleTorch pueda encender la linterna por su propio stream
-      try {
-        await new Promise(r => setTimeout(r, 400));
-        const qrCaps = scanner?.getRunningTrackCameraCapabilities?.();
-        if (qrCaps?.torchFeature?.isSupported?.()) {
-          this._qrTrackCaps = qrCaps;
-        } else {
-          // Fallback: buscar el video que inyectó html5-qrcode
-          const vid = container.querySelector('video');
-          if (vid?.srcObject) {
-            const t = vid.srcObject.getVideoTracks()[0];
-            if (t?.getCapabilities?.()?.torch) this._videoTrack = t;
-          }
-        }
-      } catch(e) {}
 
       if (status) status.textContent = 'Apuntá el código de barras al recuadro';
+      this.startCameraScan(video);
 
     } catch (e) {
       console.error('Camera error:', e);
-      this.cameraActive = false;
       if (e.name === 'NotAllowedError') {
         showToast('Permiso de cámara denegado. Habilitalo en la configuración del navegador.', 'error', 5000);
       } else {
@@ -729,82 +642,146 @@ const Ventas = {
     }
   },
 
-  _loadHtml5QrCode() {
-    return new Promise((resolve) => {
-      if (window.Html5Qrcode) { resolve(); return; }
-      const s = document.createElement('script');
-      s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-      s.onload  = resolve;
-      s.onerror = () => { console.warn('html5-qrcode no cargó'); resolve(); };
-      document.head.appendChild(s);
-    });
-  },
-
   // Encender/apagar linterna
   async toggleTorch() {
-    const torchBtn   = document.getElementById('btn-torch');
-    const torchLabel = document.getElementById('torch-label');
+    if (!this._videoTrack) return;
+    const torchBtn  = document.getElementById('btn-torch');
+    const torchLabel= document.getElementById('torch-label');
+
     try {
       this.torchOn = !this.torchOn;
-      // Método 1: html5-qrcode API
-      if (this._qrTrackCaps?.torchFeature?.isSupported?.()) {
-        await this._qrTrackCaps.torchFeature.apply(this.torchOn);
-      }
-      // Método 2: fallback MediaStreamTrack nativo
-      else if (this._videoTrack) {
-        await this._videoTrack.applyConstraints({ advanced: [{ torch: this.torchOn }] });
-      } else {
-        throw new Error('no torch');
-      }
+      await this._videoTrack.applyConstraints({
+        advanced: [{ torch: this.torchOn }]
+      });
+
       if (torchBtn) {
-        torchBtn.style.background  = this.torchOn ? 'rgba(126,211,33,0.85)' : 'rgba(0,0,0,0.75)';
-        torchBtn.style.borderColor = this.torchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.35)';
-        torchBtn.style.color       = this.torchOn ? '#0D1117' : 'white';
+        torchBtn.style.background  = this.torchOn
+          ? 'rgba(126,211,33,0.85)'
+          : 'rgba(0,0,0,0.75)';
+        torchBtn.style.borderColor = this.torchOn
+          ? 'var(--green-primary)'
+          : 'rgba(255,255,255,0.35)';
+        torchBtn.style.color = this.torchOn ? '#0D1117' : 'white';
       }
       if (torchLabel) torchLabel.textContent = this.torchOn ? 'ON' : 'OFF';
-    } catch(e) {
+
+    } catch (e) {
       showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
       this.torchOn = false;
     }
   },
 
+  loadZXing() {
+    return new Promise((resolve, reject) => {
+      if (window.ZXing) { resolve(); return; }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
+      script.onload = resolve;
+      script.onerror = () => { console.warn('ZXing no cargó'); resolve(); };
+      document.head.appendChild(script);
+    });
+  },
+
+  startCameraScan(video) {
+    const canvas = document.getElementById('camera-canvas');
+    const status = document.getElementById('camera-status');
+
+    if (!window.ZXing) {
+      // Sin librería: no podemos escanear pero la cámara queda activa
+      if (status) status.textContent = 'Lector no disponible. Usá el escáner físico.';
+      return;
+    }
+
+    try {
+      const hints   = new Map();
+      const formats = [
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.DATA_MATRIX,
+        ZXing.BarcodeFormat.ITF,
+        ZXing.BarcodeFormat.CODABAR
+      ];
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+      const reader = new ZXing.MultiFormatReader();
+      reader.setHints(hints);
+      const ctx = canvas.getContext('2d');
+      let lastCode = '';
+      let lastTime = 0;
+
+      this._scanInterval = setInterval(() => {
+        if (!this.cameraActive || video.readyState < 2) return;
+        try {
+          canvas.width  = video.videoWidth  || 640;
+          canvas.height = video.videoHeight || 480;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+          const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+          const result    = reader.decode(bitmap);
+
+          if (result) {
+            const code = result.getText();
+            const now  = Date.now();
+            // Evitar doble lectura del mismo código en < 2 segundos
+            if (code === lastCode && now - lastTime < 2000) return;
+            lastCode = code;
+            lastTime = now;
+
+            if (status) status.textContent = `Código: ${code}`;
+            // Feedback sonoro (beep)
+            this._beep();
+            this.stopCamera();
+            this.addByCode(code);
+          }
+        } catch (e) {
+          // NotFoundException = normal, no hay código en el frame
+        }
+      }, 250);
+
+    } catch (e) {
+      console.error('ZXing scan error:', e);
+    }
+  },
+
   _beep() {
     try {
-      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-      const now  = ctx.currentTime;
-      // Pip doble estilo supermercado: dos tonos cortos y limpios
-      [0, 0.12].forEach(offset => {
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.value = 1800;
-        gain.gain.setValueAtTime(0, now + offset);
-        gain.gain.linearRampToValueAtTime(0.35, now + offset + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.09);
-        osc.start(now + offset);
-        osc.stop(now + offset + 0.1);
-      });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 1200;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
     } catch (e) { /* sin audio = ok */ }
   },
 
   stopCamera() {
-    if (this._html5QrCode) {
-      this._html5QrCode.stop().catch(() => {});
-      this._html5QrCode = null;
+    // Apagar linterna antes de cerrar
+    if (this._videoTrack && this.torchOn) {
+      this._videoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
     }
-    // limpieza legado por si quedó algo de versiones anteriores
     if (this.cameraStream) {
       this.cameraStream.getTracks().forEach(t => t.stop());
       this.cameraStream = null;
     }
-    if (this._scanInterval)  { clearInterval(this._scanInterval);   this._scanInterval = null; }
-    if (this._scanRAF)       { cancelAnimationFrame(this._scanRAF); this._scanRAF = null; }
-
+    if (this._scanInterval) {
+      clearInterval(this._scanInterval);
+      this._scanInterval = null;
+    }
     this.cameraActive = false;
-    this.torchOn      = false;
-    this._videoTrack  = null;
-    this._qrTrackCaps = null;
+    this.torchOn = false;
+    this._videoTrack = null;
 
     const container = document.getElementById('camera-container');
     const btn       = document.getElementById('btn-camara');
@@ -815,6 +792,7 @@ const Ventas = {
       btn.style.background  = 'var(--bg-card)';
     }
   },
+
   // ════════════════════════════════════════════════════════
   // CARRITO
   // ════════════════════════════════════════════════════════
@@ -1113,232 +1091,17 @@ const Ventas = {
         if (p) p.stock -= item.cantidad;
       });
 
-      // Guardar datos de la venta para el ticket ANTES de limpiar el carrito
-      const ticketData = {
-        items:      [...this.cart],
-        subtotal, descPct, total, metodoPago,
-        fecha:      new Date(),
-        negocio:    PS.businessData?.name || 'Mi Negocio',
-        telefono:   PS.businessData?.phone || '',
-        direccion:  PS.businessData?.address || '',
-      };
-
       this.cart = [];
       this.renderCart();
       this.updateTotals();
       this.renderProductos();
-
-      // Mostrar modal de ticket
-      this.mostrarTicket(ticketData);
+      showToast(`Venta registrada — ${formatPrice(total)}`, 'success');
 
     } catch (e) {
       console.error(e);
       showToast('Error al registrar la venta: ' + e.message, 'error');
       btn.disabled = false;
       btn.textContent = 'Cobrar';
-    }
-  },
-
-  // ── Ticket post-venta ─────────────────────────────────────
-  mostrarTicket(d) {
-    const ahora  = d.fecha.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    const lineas = d.items.map(i =>
-      `${i.nombre.padEnd(20).slice(0,20)}  ${String(i.esPeso ? '1' : i.cantidad).padStart(3)}  ${formatPrice(i.esPeso ? i.precio : i.precio * i.cantidad)}`
-    ).join('\n');
-
-    const ticketHTML = `
-      <div id="ticket-print-area" style="
-        background:#fff; color:#000; font-family:'Courier New', monospace;
-        width:280px; margin:0 auto; padding:16px 12px;
-        border-radius:4px; font-size:12px; line-height:1.5;">
-
-        <!-- Cabecera -->
-        <div style="text-align:center; margin-bottom:10px;">
-          <div style="font-size:18px; font-weight:900; letter-spacing:1px;">${d.negocio}</div>
-          ${d.telefono ? `<div style="font-size:11px;">${d.telefono}</div>` : ''}
-          ${d.direccion ? `<div style="font-size:11px;">${d.direccion}</div>` : ''}
-          <div style="font-size:10px; color:#555; margin-top:4px;">${ahora}</div>
-        </div>
-
-        <div style="border-top:1px dashed #999; margin:8px 0;"></div>
-
-        <!-- Items -->
-        <div style="font-size:11px; white-space:pre; overflow:hidden;">
-Producto             Cant  Precio
-─────────────────────────────────
-${lineas}
-        </div>
-
-        <div style="border-top:1px dashed #999; margin:8px 0;"></div>
-
-        <!-- Totales -->
-        <div style="display:flex; justify-content:space-between; font-size:12px;">
-          <span>Subtotal</span><span>${formatPrice(d.subtotal)}</span>
-        </div>
-        ${d.descPct > 0 ? `
-        <div style="display:flex; justify-content:space-between; font-size:12px; color:#666;">
-          <span>Descuento ${d.descPct}%</span>
-          <span>-${formatPrice(d.subtotal * d.descPct / 100)}</span>
-        </div>` : ''}
-        <div style="display:flex; justify-content:space-between; font-size:15px; font-weight:900; margin-top:6px; border-top:2px solid #000; padding-top:6px;">
-          <span>TOTAL</span><span>${formatPrice(d.total)}</span>
-        </div>
-        <div style="font-size:11px; color:#555; margin-top:4px;">
-          Pago: ${d.metodoPago}
-        </div>
-
-        <div style="border-top:1px dashed #999; margin:10px 0;"></div>
-        <div style="text-align:center; font-size:10px; color:#777;">
-          ¡Gracias por su compra!<br>
-          Powered by PuntoStock
-        </div>
-      </div>
-    `;
-
-    // Texto para WhatsApp
-    const waTexto = encodeURIComponent(
-      `🧾 *${d.negocio}*\n` +
-      `📅 ${ahora}\n\n` +
-      d.items.map(i => `• ${i.nombre} x${i.esPeso ? '1' : i.cantidad} — ${formatPrice(i.esPeso ? i.precio : i.precio * i.cantidad)}`).join('\n') +
-      `\n${'─'.repeat(30)}\n` +
-      (d.descPct > 0 ? `Subtotal: ${formatPrice(d.subtotal)}\nDescuento: ${d.descPct}%\n` : '') +
-      `*TOTAL: ${formatPrice(d.total)}*\n` +
-      `Pago: ${d.metodoPago}\n\n_¡Gracias por su compra!_`
-    );
-
-    openModal(`
-      <div class="modal-header">
-        <h3 class="modal-title" style="display:flex;align-items:center;gap:8px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-          Ticket de venta
-        </h3>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-
-      <!-- Ticket visual -->
-      ${ticketHTML}
-
-      <!-- Acciones -->
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:16px;">
-
-        <!-- Imprimir -->
-        <button onclick="Ventas.imprimirTicket()"
-          style="display:flex; flex-direction:column; align-items:center; gap:6px;
-                 padding:12px 8px; background:var(--bg-card); border:1px solid var(--border);
-                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
-                 font-family:var(--font); font-size:11px; font-weight:600; transition:all 0.2s;"
-          onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
-          onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <polyline points="6 9 6 2 18 2 18 9"/>
-            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-            <rect x="6" y="14" width="12" height="8"/>
-          </svg>
-          Imprimir
-        </button>
-
-        <!-- WhatsApp -->
-        <a href="https://wa.me/?text=${waTexto}" target="_blank" rel="noopener"
-          style="display:flex; flex-direction:column; align-items:center; gap:6px;
-                 padding:12px 8px; background:var(--bg-card); border:1px solid var(--border);
-                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
-                 font-family:var(--font); font-size:11px; font-weight:600; transition:all 0.2s;
-                 text-decoration:none;"
-          onmouseenter="this.style.borderColor='#25D366';this.style.color='#25D366'"
-          onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">
-          <!-- WhatsApp SVG oficial -->
-          <svg width="22" height="22" viewBox="0 0 32 32" fill="currentColor">
-            <path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.43-1.77A13.93 13.93 0 0 0 16 30c7.72 0 14-6.28 14-14S23.72 2 16 2zm0 25.4a11.4 11.4 0 0 1-5.8-1.58l-.42-.25-4.4 1.05 1.08-4.28-.28-.44A11.37 11.37 0 0 1 4.6 16C4.6 9.71 9.71 4.6 16 4.6S27.4 9.71 27.4 16 22.29 27.4 16 27.4zm6.26-8.5c-.34-.17-2.02-.99-2.33-1.1-.31-.12-.54-.17-.77.17-.23.34-.88 1.1-1.08 1.33-.2.22-.4.25-.74.08-.34-.17-1.43-.53-2.73-1.68-1.01-.9-1.69-2.01-1.88-2.35-.2-.34-.02-.52.15-.69.15-.15.34-.39.51-.59.17-.2.23-.34.34-.57.12-.23.06-.43-.03-.6-.08-.17-.77-1.85-1.05-2.54-.28-.67-.56-.58-.77-.59l-.65-.01c-.23 0-.6.08-.91.4-.31.31-1.19 1.16-1.19 2.84s1.22 3.29 1.39 3.52c.17.22 2.4 3.66 5.82 5.13.81.35 1.45.56 1.94.72.82.26 1.56.22 2.15.13.66-.1 2.02-.82 2.31-1.62.28-.8.28-1.48.2-1.62-.09-.14-.31-.22-.65-.39z"/>
-          </svg>
-          WhatsApp
-        </a>
-
-        <!-- Descargar imagen -->
-        <button onclick="Ventas.descargarTicketImagen()"
-          style="display:flex; flex-direction:column; align-items:center; gap:6px;
-                 padding:12px 8px; background:var(--bg-card); border:1px solid var(--border);
-                 border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);
-                 font-family:var(--font); font-size:11px; font-weight:600; transition:all 0.2s;"
-          onmouseenter="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
-          onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-          Descargar
-        </button>
-      </div>
-
-      <button class="btn btn-ghost w-full mt-8" onclick="closeModal()" style="font-size:12px;">
-        Cerrar sin imprimir
-      </button>
-    `);
-  },
-
-  imprimirTicket() {
-    const area = document.getElementById('ticket-print-area');
-    if (!area) return;
-    const win = window.open('', '_blank', 'width=340,height=600');
-    win.document.write(`
-      <!DOCTYPE html><html><head>
-      <meta charset="UTF-8">
-      <title>Ticket PuntoStock</title>
-      <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { background:#fff; display:flex; justify-content:center; padding:10px; }
-        @media print { body { padding:0; } button { display:none; } }
-      </style>
-      </head><body>
-      ${area.outerHTML}
-      <div style="text-align:center; margin-top:12px;">
-        <button onclick="window.print(); window.close();"
-          style="padding:10px 24px; background:#7ED321; color:#000; border:none;
-                 border-radius:6px; font-size:14px; font-weight:700; cursor:pointer;">
-          🖨 Imprimir
-        </button>
-      </div>
-      </body></html>
-    `);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
-  },
-
-  async descargarTicketImagen() {
-    const area = document.getElementById('ticket-print-area');
-    if (!area) return;
-
-    // Cargar html2canvas si no está
-    if (!window.html2canvas) {
-      showToast('Preparando imagen...', 'info', 2000);
-      await new Promise((resolve) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        s.onload  = resolve;
-        s.onerror = () => { showToast('Error al generar imagen', 'error'); resolve(); };
-        document.head.appendChild(s);
-      });
-    }
-    if (!window.html2canvas) return;
-
-    try {
-      const canvas = await html2canvas(area, {
-        backgroundColor: '#ffffff',
-        scale: 2, // alta resolución
-        useCORS: true,
-        logging: false
-      });
-      const link = document.createElement('a');
-      link.download = `ticket-${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      showToast('Imagen descargada', 'success');
-    } catch(e) {
-      showToast('Error al generar imagen: ' + e.message, 'error');
     }
   },
 

@@ -38,8 +38,10 @@ const PS = {
       if (!userDoc.exists) { this.showAuth('login'); return; }
 
       const userData = userDoc.data();
-      this.businessId = userData.businessId;
-      this.isAdmin = userData.role === 'admin';
+      this.businessId  = userData.businessId;
+      this.businessIds = userData.businessIds || [userData.businessId];
+      this.isAdmin     = userData.role === 'admin';
+      this.userUid     = uid;
 
       const bizDoc = await db.collection('businesses').doc(this.businessId).get();
       if (bizDoc.exists) {
@@ -68,6 +70,18 @@ const PS = {
             this.trialExpired = false;
             this.trialDaysLeft = null;
           }
+        }
+
+        // Cargar todos los negocios del usuario (para multi)
+        if (this.businessIds.length > 1) {
+          const snaps = await Promise.all(
+            this.businessIds.map(id => db.collection('businesses').doc(id).get())
+          );
+          this.allBusinesses = snaps
+            .filter(s => s.exists)
+            .map(s => ({ id: s.id, ...s.data() }));
+        } else {
+          this.allBusinesses = [{ id: this.businessId, ...this.businessData }];
         }
       }
     } catch (e) {
@@ -127,8 +141,8 @@ const PS = {
     this.updateTopbarUser();
     this.navigate('dashboard');
 
-    // Banner de aviso trial — siempre visible si está en trial
-    if (this.trialDaysLeft !== null) {
+    // Banner de aviso trial
+    if (this.trialDaysLeft !== null && this.trialDaysLeft <= 7) {
       setTimeout(() => this.showTrialBanner(), 800);
     }
 
@@ -197,41 +211,34 @@ const PS = {
   showTrialBanner() {
     if (document.getElementById('trial-banner')) return;
     const dias = this.trialDaysLeft;
-    const urgente  = dias <= 2;
-    const warning  = dias <= 5;
-    const color = urgente ? 'rgba(248,81,73,0.97)' : warning ? 'rgba(240,165,0,0.97)' : 'rgba(88,166,255,0.97)';
-
-    let mensaje;
-    if (dias === 0)      mensaje = `<strong>⚠ Último día de prueba.</strong> Tu acceso vence hoy.`;
-    else if (dias === 1) mensaje = `<strong>⚠ Mañana vence tu prueba.</strong> Contactá al admin para no perder el acceso.`;
-    else if (urgente)    mensaje = `<strong>⚠ Te quedan ${dias} días de prueba.</strong> Coordiná tu plan antes de que venza.`;
-    else if (warning)    mensaje = `Tu prueba vence en <strong>${dias} días</strong>. Contactá al administrador.`;
-    else                 mensaje = `Período de prueba activo — <strong>${dias} días restantes</strong>.`;
-
+    const urgente = dias <= 2;
     const banner = document.createElement('div');
     banner.id = 'trial-banner';
     banner.style.cssText = `
       position:fixed; top:0; left:0; right:0; z-index:9998;
-      background:${color}; backdrop-filter:blur(8px);
-      padding:10px 16px;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:${urgente ? 'rgba(248,81,73,0.96)' : 'rgba(240,165,0,0.96)'};
+      backdrop-filter:blur(8px); padding:10px 20px;
+      display:flex; align-items:center; justify-content:center; gap:12px;
       font-family:var(--font); font-size:13px; font-weight:500; color:white;
       border-bottom:1px solid rgba(255,255,255,0.15);
     `;
     banner.innerHTML = `
-      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span style="line-height:1.4;">${mensaje}</span>
-      </div>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span>
+        ${urgente
+          ? `<strong>Atención:</strong> Tu plan trial vence ${dias === 1 ? 'mañana' : 'en ' + dias + ' días'}.`
+          : `Tu plan trial vence en <strong>${dias} días</strong>.`
+        }
+        Contactá al administrador para no perder el acceso.
+      </span>
       <button onclick="document.getElementById('trial-banner').remove(); document.getElementById('main-content').style.paddingTop=''"
         style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer;
-               padding:5px 11px; border-radius:4px; font-size:12px; font-family:var(--font);
-               white-space:nowrap; flex-shrink:0;">
-        ✕
+               padding:4px 10px; border-radius:4px; font-size:12px; font-family:var(--font);">
+        Cerrar
       </button>
     `;
     document.getElementById('main-content').style.paddingTop = '42px';
@@ -248,15 +255,82 @@ const PS = {
       const dias = this.trialDaysLeft;
       if (plan === 'trial' && dias !== null) {
         planEl.innerHTML = `<span style="color:var(--orange);">●</span> Trial — ${dias} días restantes`;
-      } else if (plan === 'pro') {
-        planEl.innerHTML = `<span style="color:var(--green-primary);">●</span> Plan Pro`;
+      } else if (plan === 'pro_mensual') {
+        planEl.innerHTML = `<span style="color:var(--green-primary);">●</span> Plan Pro Mensual`;
+      } else if (plan === 'pro_anual') {
+        planEl.innerHTML = `<span style="color:var(--green-primary);">●</span> Plan Pro Anual`;
+      } else if (plan === 'multi') {
+        planEl.innerHTML = `<span style="color:var(--purple);">●</span> Multi-negocio`;
       } else {
         planEl.innerHTML = `<span style="color:var(--green-primary);">●</span> Sistema activo`;
       }
     }
 
+    // Selector de negocio (solo si tiene más de uno)
+    const switcherEl = document.getElementById('sidebar-biz-switcher');
+    if (switcherEl) {
+      const negocios = this.allBusinesses || [];
+      if (negocios.length > 1) {
+        switcherEl.style.display = 'block';
+        switcherEl.innerHTML = `
+          <div style="font-size:10px; font-weight:700; color:var(--text-muted);
+                      text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">
+            Cambiar negocio
+          </div>
+          ${negocios.map(biz => `
+            <div onclick="PS.cambiarNegocio('${biz.id}')"
+              style="display:flex; align-items:center; gap:8px; padding:8px 10px;
+                     border-radius:var(--radius-md); cursor:pointer; transition:all 0.15s;
+                     background:${biz.id === this.businessId ? 'var(--green-muted)' : 'transparent'};
+                     border:1px solid ${biz.id === this.businessId ? 'var(--border-green)' : 'transparent'};
+                     margin-bottom:3px;">
+              <div style="width:8px; height:8px; border-radius:50%; flex-shrink:0;
+                           background:${biz.id === this.businessId ? 'var(--green-primary)' : 'var(--text-muted)'};">
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:12px; font-weight:${biz.id === this.businessId ? '700' : '500'};
+                             color:${biz.id === this.businessId ? 'var(--green-primary)' : 'var(--text-secondary)'};
+                             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  ${biz.name}
+                </div>
+              </div>
+              ${biz.id === this.businessId ? `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="3">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>` : ''}
+            </div>
+          `).join('')}
+        `;
+      } else {
+        switcherEl.style.display = 'none';
+      }
+    }
+
     const adminNav = document.getElementById('admin-nav-item');
     if (adminNav) adminNav.style.display = this.isAdmin ? 'flex' : 'none';
+  },
+
+  // Cambiar al negocio activo
+  async cambiarNegocio(bizId) {
+    if (bizId === this.businessId) return;
+
+    try {
+      // Actualizar en Firestore
+      await db.collection('users').doc(this.userUid).update({ businessId: bizId });
+
+      // Cargar datos del nuevo negocio
+      const bizDoc = await db.collection('businesses').doc(bizId).get();
+      if (bizDoc.exists) {
+        this.businessId   = bizId;
+        this.businessData = bizDoc.data();
+        this.renderSidebar();
+        this.updateTopbarUser();
+        this.navigate('dashboard');
+        showToast(`Cambiaste a: ${this.businessData.name}`, 'success');
+      }
+    } catch (e) {
+      showToast('Error al cambiar de negocio: ' + e.message, 'error');
+    }
   },
 
   updateTopbarUser() {
@@ -288,19 +362,10 @@ const Theme = {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('ps_theme', theme);
     this.updateIcon();
-    this.updateLogos();
   },
 
   toggle() {
     this.apply(this.current === 'dark' ? 'light' : 'dark');
-  },
-
-  // Actualiza TODOS los logos de la página (sidebar + auth)
-  updateLogos() {
-    const src = this.current === 'dark' ? '../logo-dark.png' : '../logo-light.png';
-    document.querySelectorAll('img[id^="auth-logo-"], #sidebar-logo-img').forEach(img => {
-      img.src = src;
-    });
   },
 
   updateIcon() {
@@ -363,17 +428,7 @@ function closeModal() {
 }
 
 // ── Formatters ────────────────────────────────────────────────
-function formatPrice(n) {
-  // Pesos argentinos: $95.000 — punto miles, sin decimales, sin espacio
-  const num = Math.round(Number(n || 0));
-  // Forzar separador de miles con punto (es-AR) de forma explícita
-  const formatted = num.toLocaleString('es-AR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-    useGrouping: true
-  });
-  return '$' + formatted;
-}
+function formatPrice(n) { return '$' + Number(n || 0).toLocaleString('es-AR'); }
 
 function formatDate(ts) {
   if (!ts) return '-';
