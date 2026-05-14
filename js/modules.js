@@ -617,17 +617,29 @@ const Caja = {
             <div class="stat-change up">▲ ${cantVentas} ventas</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon green">💵</div>
+            <div class="stat-icon green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
             <div class="stat-label">Efectivo</div>
             <div class="stat-value">${formatPrice(totalEfectivo)}</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon blue">💳</div>
+            <div class="stat-icon blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+            </div>
             <div class="stat-label">Tarjeta</div>
             <div class="stat-value">${formatPrice(totalTarjeta)}</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon blue">🔄</div>
+            <div class="stat-icon blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+              </svg>
+            </div>
             <div class="stat-label">Transferencia</div>
             <div class="stat-value">${formatPrice(totalTransf)}</div>
           </div>
@@ -638,13 +650,16 @@ const Caja = {
           <div class="card">
             <div class="card-title">Desglose por método de pago</div>
             ${[
-              ['💵 Efectivo', totalEfectivo],
-              ['💳 Tarjeta', totalTarjeta],
-              ['🔄 Transferencia', totalTransf],
-              ['📒 Cuenta corriente', totalCC]
-            ].map(([label, val]) => `
+              { svg:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', color:'var(--green-primary)', label:'Efectivo',         val: totalEfectivo },
+              { svg:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',               color:'var(--blue)',         label:'Tarjeta',          val: totalTarjeta  },
+              { svg:'<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',           color:'var(--blue)',         label:'Transferencia',    val: totalTransf   },
+              { svg:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', color:'var(--orange)',    label:'Cuenta corriente', val: totalCC       },
+            ].map(({ svg, color, label, val }) => `
               <div class="cierre-metodo">
-                <span class="cierre-metodo-label">${label}</span>
+                <span class="cierre-metodo-label" style="display:flex; align-items:center; gap:8px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" style="flex-shrink:0;">${svg}</svg>
+                  ${label}
+                </span>
                 <span class="cierre-metodo-value">${formatPrice(val)}</span>
               </div>
             `).join('')}

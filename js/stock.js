@@ -154,6 +154,17 @@ const Stock = {
           <td>
             <div style="font-weight:600;">${p.nombre}</div>
             ${p.descripcion ? `<div style="font-size:11px; color:var(--text-muted);">${p.descripcion}</div>` : ''}
+            ${p.promo?.activa ? `
+              <div style="display:inline-flex; align-items:center; gap:4px; margin-top:3px;
+                           background:rgba(240,165,0,0.12); border:1px solid rgba(240,165,0,0.3);
+                           border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; color:var(--orange);">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                  <line x1="7" y1="7" x2="7.01" y2="7"/>
+                </svg>
+                ${p.promo.texto || p.promo.tipo}
+              </div>
+            ` : ''}
           </td>
           <td class="td-mono td-muted">${p.codigo || p.codigoBarra || '—'}</td>
           <td><span class="badge badge-muted">${p.categoria || 'Sin cat.'}</span></td>
@@ -180,16 +191,29 @@ const Stock = {
               return `<span style="color:${color}; font-size:12px; font-weight:${dias<=30?700:400};">${p.vencimiento} <span style="font-size:10px;">(${texto})</span></span>`;
             })()}
           </td>
-          <td>
+            <td>
             <div style="display:flex; gap:6px;">
-              <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})">
-                ± Stock
+              <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})"
+                style="display:flex; align-items:center; gap:4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Stock
               </button>
-              <button class="btn btn-sm btn-secondary" onclick="Stock.openModal('${p.id}')">
-                ✏
+              <button class="btn btn-sm btn-secondary" onclick="Stock.openModal('${p.id}')"
+                style="display:flex; align-items:center; gap:4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
               </button>
-              <button class="btn btn-sm btn-danger" onclick="Stock.eliminar('${p.id}', '${p.nombre}')">
-                🗑
+              <button class="btn btn-sm btn-danger" onclick="Stock.eliminar('${p.id}', '${p.nombre}')"
+                style="display:flex; align-items:center; gap:4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
               </button>
             </div>
           </td>
@@ -474,6 +498,66 @@ const Stock = {
         </label>
       </div>
 
+      <!-- Sección de promo -->
+      <div style="border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            <span style="font-weight:700; font-size:13px;">Promoción</span>
+            <span style="font-size:10px; color:var(--text-muted);">(opcional)</span>
+          </div>
+          <label class="toggle" style="margin:0;">
+            <input type="checkbox" id="prod-tiene-promo"
+              ${prod?.promo?.activa ? 'checked' : ''}
+              onchange="Stock.togglePromo(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="promo-opciones" style="display:${prod?.promo?.activa ? 'block' : 'none'};">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            ${[
+              { id:'2x1',    label:'2x1',                     sub:'Llevás 2, pagás 1',            svg:'<text x="2" y="17" font-size="11" font-weight="900" fill="currentColor">2x1</text>' },
+              { id:'3x1',    label:'3x1',                     sub:'Llevás 3, pagás 1',            svg:'<text x="2" y="17" font-size="11" font-weight="900" fill="currentColor">3x1</text>' },
+              { id:'4x1',    label:'4x1',                     sub:'Llevás 4, pagás 1',            svg:'<text x="2" y="17" font-size="11" font-weight="900" fill="currentColor">4x1</text>' },
+              { id:'50off2', label:'50% OFF 2da unidad',      sub:'La 2da unidad al 50%',         svg:'<text x="1" y="13" font-size="8" font-weight="900" fill="currentColor">50%</text><text x="1" y="21" font-size="7" fill="currentColor">2da ud</text>' },
+              { id:'30off',  label:'30% OFF',                 sub:'Descuento del 30%',            svg:'<text x="1" y="13" font-size="8" font-weight="900" fill="currentColor">30%</text><text x="2" y="21" font-size="7" fill="currentColor">OFF</text>' },
+              { id:'custom', label:'Personalizada',           sub:'Escribí tu propia promo',      svg:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' },
+            ].map(p => {
+              const sel = prod?.promo?.tipo === p.id;
+              return `
+                <div onclick="Stock.selPromo('${p.id}')" id="promo-op-${p.id}"
+                  style="display:flex; align-items:center; gap:10px; padding:10px 12px;
+                         border:2px solid ${sel ? 'var(--orange)' : 'var(--border)'};
+                         border-radius:var(--radius-md); cursor:pointer; transition:all 0.15s;
+                         background:${sel ? 'rgba(240,165,0,0.08)' : 'var(--bg-card)'};">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                       stroke="${sel ? 'var(--orange)' : 'var(--text-muted)'}" stroke-width="1.5">
+                    ${p.svg.startsWith('<text') ? p.svg.replace('fill="currentColor"', `fill="${sel ? 'var(--orange)' : 'var(--text-muted)'}"`) : p.svg}
+                  </svg>
+                  <div>
+                    <div style="font-size:12px; font-weight:700; color:${sel ? 'var(--orange)' : 'var(--text-primary)'};">${p.label}</div>
+                    <div style="font-size:10px; color:var(--text-muted);">${p.sub}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Campo texto para promo personalizada -->
+          <div id="promo-custom-field" style="display:${prod?.promo?.tipo === 'custom' ? 'block' : 'none'}; margin-top:10px;">
+            <input type="text" id="promo-custom-texto"
+              value="${prod?.promo?.texto || ''}"
+              placeholder="Ej: 3x2 en artículos seleccionados...">
+          </div>
+
+          <input type="hidden" id="promo-tipo-seleccionado" value="${prod?.promo?.tipo || ''}">
+        </div>
+      </div>
+
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="Stock.guardar('${id || ''}')" style="width:auto;">
@@ -522,6 +606,34 @@ const Stock = {
     if (labelPrecio) labelPrecio.textContent  = esPeso ? 'Precio de venta por kg *' : 'Precio de venta *';
   },
 
+  togglePromo(activa) {
+    document.getElementById('promo-opciones').style.display = activa ? 'block' : 'none';
+    if (!activa) {
+      document.getElementById('promo-tipo-seleccionado').value = '';
+      document.getElementById('promo-custom-field').style.display = 'none';
+    }
+  },
+
+  selPromo(id) {
+    document.getElementById('promo-tipo-seleccionado').value = id;
+    // Resetear todos
+    ['2x1','3x1','4x1','50off2','30off','custom'].forEach(p => {
+      const el = document.getElementById(`promo-op-${p}`);
+      if (!el) return;
+      el.style.border = '2px solid var(--border)';
+      el.style.background = 'var(--bg-card)';
+      el.querySelector('div:first-child + div div:first-child').style.color = 'var(--text-primary)';
+    });
+    // Resaltar seleccionado
+    const el = document.getElementById(`promo-op-${id}`);
+    if (el) {
+      el.style.border = '2px solid var(--orange)';
+      el.style.background = 'rgba(240,165,0,0.08)';
+    }
+    // Mostrar/ocultar campo personalizado
+    document.getElementById('promo-custom-field').style.display = id === 'custom' ? 'block' : 'none';
+  },
+
   async guardar(id) {
     const nombre      = document.getElementById('prod-nombre').value.trim();
     const precio      = parseFloat(document.getElementById('prod-precio').value);
@@ -537,6 +649,21 @@ const Stock = {
     const talle       = document.getElementById('prod-talle')?.value?.trim() || null;
     const color       = document.getElementById('prod-color')?.value?.trim() || null;
     const costoEnvio  = parseFloat(document.getElementById('prod-envio')?.value) || null;
+    const tienePromo  = document.getElementById('prod-tiene-promo')?.checked || false;
+    const promoTipo   = document.getElementById('promo-tipo-seleccionado')?.value || null;
+    const promoTexto  = document.getElementById('promo-custom-texto')?.value?.trim() || null;
+
+    const promo = tienePromo && promoTipo ? {
+      activa: true,
+      tipo:   promoTipo,
+      texto:  promoTipo === 'custom' ? promoTexto : {
+        '2x1':   '2x1 — Llevás 2, pagás 1',
+        '3x1':   '3x1 — Llevás 3, pagás 1',
+        '4x1':   '4x1 — Llevás 4, pagás 1',
+        '50off2':'50% OFF en la 2da unidad',
+        '30off': '30% OFF',
+      }[promoTipo] || promoTipo,
+    } : { activa: false, tipo: null, texto: null };
 
     if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
     if (isNaN(precio) || precio < 0) { showToast('Precio inválido', 'error'); return; }
@@ -555,6 +682,7 @@ const Stock = {
     if (talle)       data.talle        = talle;
     if (color)       data.color        = color;
     if (costoEnvio)  data.costoEnvio   = costoEnvio;
+    data.promo = promo;
 
     try {
       const col = db.collection('businesses').doc(PS.businessId).collection('productos');
@@ -576,7 +704,7 @@ const Stock = {
   ajustarStock(id, nombre, stockActual) {
     openModal(`
       <div class="modal-header">
-        <h3 class="modal-title">± Ajustar stock</h3>
+        <h3 class="modal-title">Ajustar stock</h3>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
       <p style="font-weight:600; margin-bottom:4px;">${nombre}</p>
@@ -589,7 +717,7 @@ const Stock = {
         <select id="ajuste-tipo">
           <option value="agregar">➕ Agregar unidades</option>
           <option value="restar">➖ Restar unidades</option>
-          <option value="establecer">🔄 Establecer cantidad exacta</option>
+          <option value="establecer">Establecer cantidad exacta</option>
         </select>
       </div>
       <div class="form-group">
