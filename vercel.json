@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "installCommand": "npm install",
+  "rewrites": [
+    { "source": "/widget.js", "destination": "/widget.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
