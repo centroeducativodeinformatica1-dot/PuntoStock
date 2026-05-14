@@ -111,8 +111,8 @@ const Auth = {
   // ── PLANES ────────────────────────────────────────────────
   planesHTML() {
     return `
-      <div style="min-height:100vh; padding:40px 20px; display:flex; flex-direction:column;
-                  align-items:center; justify-content:center; gap:0;">
+      <div style="min-height:100vh; padding:40px 16px 60px; display:flex; flex-direction:column;
+                  align-items:center; justify-content:flex-start; gap:0; overflow-y:auto;">
 
         <!-- Header -->
         <div style="text-align:center; margin-bottom:40px; max-width:600px;">
@@ -128,8 +128,8 @@ const Auth = {
         </div>
 
         <!-- Cards de planes -->
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-                    gap:16px; max-width:960px; width:100%;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+                    gap:16px; max-width:960px; width:100%; padding:0 4px;">
 
           <!-- TRIAL -->
           <div class="plan-select-card" onclick="Auth.selectPlan('trial')" id="plan-trial">
@@ -281,6 +281,12 @@ const Auth = {
         .plan-select-features li {
           font-size: 12px; color: var(--text-secondary);
           display: flex; align-items: center; gap: 6px;
+        }
+        /* Mobile: 1 columna, sin hover transform */
+        @media (max-width: 600px) {
+          .plan-select-card:hover { transform: none; }
+          .plan-select-card { padding: 18px; }
+          .plan-select-name { font-size: 15px; }
         }
         .plan-select-features li::before {
           content: ''; width: 5px; height: 5px;
