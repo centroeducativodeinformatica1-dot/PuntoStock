@@ -153,17 +153,8 @@ const PS = {
 
     // Tidio solo para usuarios con plan trial
     if (!this.isAdmin && (this.businessData?.plan === 'trial' || !this.businessData?.plan)) {
-      this.loadTidio();
+      // Chat widget se carga desde el HTML
     }
-  },
-
-  loadTidio() {
-    if (document.getElementById('tidio-script')) return;
-    const s = document.createElement('script');
-    s.id = 'tidio-script';
-    s.src = '//code.tidio.co/eguph56krosseehnhpk1efwhuegt2vqb.js';
-    s.async = true;
-    document.body.appendChild(s);
   },
 
   showTrialExpired() {
