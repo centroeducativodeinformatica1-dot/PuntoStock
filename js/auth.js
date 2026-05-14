@@ -346,13 +346,43 @@ const Auth = {
         <h2 class="auth-title" style="font-size:20px; margin-bottom:4px;">Creá tu cuenta</h2>
         <p class="auth-subtitle">Ingresás en modo trial 7 días. El admin activa tu plan.</p>
 
+        <!-- Tipo de negocio -->
+        <div class="form-group" style="margin-bottom:20px;">
+          <label>¿Qué tipo de negocio tenés? *</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;" id="tipo-negocio-grid">
+            ${[
+              { id:'kiosco',    label:'Kiosco',         sub:'Almacén, bebidas, snacks',       svg:'<path d="M3 3h18v4H3z"/><path d="M3 7v14h18V7"/><path d="M9 7v14"/><path d="M15 7v14"/><path d="M3 11h6"/><path d="M15 11h6"/><path d="M3 15h6"/><path d="M15 15h6"/>',            color:'#F59E0B' },
+              { id:'ropa',      label:'Indumentaria',   sub:'Ropa, calzado, accesorios',      svg:'<path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>',                                                                  color:'#8B5CF6' },
+              { id:'comida',    label:'Comida / Rest.', sub:'Restaurant, delivery, buffet',   svg:'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',                                                           color:'#EF4444' },
+              { id:'verduleria',label:'Verdulería',      sub:'Frutas, verduras, a granel',     svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',                                                                                                                                                                                                                color:'#10B981' },
+              { id:'farmacia',  label:'Farmacia',        sub:'Medicamentos, perfumería',       svg:'<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 0-2-2V9m0 0h18"/>',                                                                                                                                               color:'#0EA5E9' },
+              { id:'electronica',label:'Electrónica',    sub:'Tecnología, celulares, PC',     svg:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',                                                                                                                                        color:'#6366F1' },
+              { id:'ferreteria',label:'Ferretería',      sub:'Herramientas, materiales',       svg:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',                                                                                              color:'#F97316' },
+              { id:'otro',      label:'Otro rubro',      sub:'Personalizado',                  svg:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',                                                                                                                                                     color:'#64748B' },
+            ].map(t => `
+              <div onclick="Auth.selTipo('${t.id}')" id="tipo-${t.id}"
+                style="display:flex; align-items:center; gap:10px; padding:12px;
+                       border:2px solid var(--border); border-radius:var(--radius-md);
+                       cursor:pointer; transition:all 0.15s; background:var(--bg-card);">
+                <div style="width:36px; height:36px; border-radius:9px; background:${t.color}18;
+                            display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                       stroke="${t.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    ${t.svg}
+                  </svg>
+                </div>
+                <div style="min-width:0;">
+                  <div style="font-size:12px; font-weight:700; color:var(--text-primary);">${t.label}</div>
+                  <div style="font-size:10px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.sub}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <input type="hidden" id="reg-tipo" value="">
+        </div>
         <div class="form-group">
           <label>Nombre del negocio *</label>
           <input type="text" id="reg-biz" maxlength="60">
-        </div>
-        <div class="form-group">
-          <label>Tu nombre *</label>
-          <input type="text" id="reg-name" maxlength="60">
         </div>
 
         ${isMulti ? `
@@ -418,20 +448,46 @@ const Auth = {
     if (el) el.textContent = '$' + total.toLocaleString('es-AR');
   },
 
+  // Colores por tipo de negocio
+  _tipoColors: {
+    kiosco:'#F59E0B', ropa:'#8B5CF6', comida:'#EF4444', verduleria:'#10B981',
+    farmacia:'#0EA5E9', electronica:'#6366F1', ferreteria:'#F97316', otro:'#64748B'
+  },
+
+  selTipo(id) {
+    document.getElementById('reg-tipo').value = id;
+    // Resetear todos
+    document.querySelectorAll('#tipo-negocio-grid > div').forEach(el => {
+      el.style.border = '2px solid var(--border)';
+      el.style.background = 'var(--bg-card)';
+    });
+    // Resaltar seleccionado
+    const color = this._tipoColors[id] || '#64748B';
+    const el = document.getElementById(`tipo-${id}`);
+    if (el) {
+      el.style.border = `2px solid ${color}`;
+      el.style.background = `${color}10`;
+    }
+  },
+
   // ── REGISTER SUBMIT ───────────────────────────────────────
   async register() {
-    const bizName  = document.getElementById('reg-biz').value.trim();
-    const name     = document.getElementById('reg-name').value.trim();
-    const email    = document.getElementById('reg-email').value.trim();
-    const phone    = document.getElementById('reg-phone').value.trim();
-    const pass     = document.getElementById('reg-pass').value;
-    const pass2    = document.getElementById('reg-pass2').value;
-    const plan     = this.planSeleccionado || 'trial';
-    const isMulti  = plan === 'multi';
-    const cantBiz  = isMulti
+    const bizName     = document.getElementById('reg-biz').value.trim();
+    const name        = document.getElementById('reg-name').value.trim();
+    const email       = document.getElementById('reg-email').value.trim();
+    const phone       = document.getElementById('reg-phone').value.trim();
+    const pass        = document.getElementById('reg-pass').value;
+    const pass2       = document.getElementById('reg-pass2').value;
+    const tipoNegocio = document.getElementById('reg-tipo')?.value || 'otro';
+    const plan        = this.planSeleccionado || 'trial';
+    const isMulti     = plan === 'multi';
+    const cantBiz     = isMulti
       ? Math.max(2, parseInt(document.getElementById('reg-cant-negocios')?.value) || 2)
       : 1;
 
+    if (!tipoNegocio) {
+      this.showError('Seleccioná el tipo de negocio.'); return;
+    }
     if (!bizName || !name || !email || !pass) {
       this.showError('Completá todos los campos obligatorios.'); return;
     }
@@ -469,6 +525,7 @@ const Auth = {
         ownerUid: uid,
         email, phone,
         numero: 1,
+        tipoNegocio,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         active: true,
         plan: 'trial',
@@ -485,6 +542,7 @@ const Auth = {
           ownerUid: uid,
           email, phone,
           numero,
+          tipoNegocio,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           active: true,
           plan: 'trial',

@@ -117,6 +117,7 @@ const Stock = {
               <th>Precio costo</th>
               <th>Stock</th>
               <th>Estado</th>
+              <th>Vencimiento</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -171,15 +172,24 @@ const Stock = {
             }
           </td>
           <td>
+            ${(() => {
+              if (!p.vencimiento) return '<span style="color:var(--text-muted); font-size:12px;">—</span>';
+              const dias = Math.ceil((new Date(p.vencimiento) - new Date()) / (1000*60*60*24));
+              const color = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--text-secondary)';
+              const texto = dias <= 0 ? '¡Vencido!' : dias === 1 ? 'Mañana' : `${dias}d`;
+              return `<span style="color:${color}; font-size:12px; font-weight:${dias<=30?700:400};">${p.vencimiento} <span style="font-size:10px;">(${texto})</span></span>`;
+            })()}
+          </td>
+          <td>
             <div style="display:flex; gap:6px;">
               <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})">
                 ± Stock
               </button>
               <button class="btn btn-sm btn-secondary" onclick="Stock.openModal('${p.id}')">
-                
+                ✏
               </button>
               <button class="btn btn-sm btn-danger" onclick="Stock.eliminar('${p.id}', '${p.nombre}')">
-                
+                🗑
               </button>
             </div>
           </td>
@@ -205,9 +215,22 @@ const Stock = {
   },
 
   openModal(id) {
-    const prod = id ? this.productos.find(p => p.id === id) : null;
-    const cats = [...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
-    const esPeso = prod?.unidad === 'kg' || prod?.unidad === 'g';
+    const prod    = id ? this.productos.find(p => p.id === id) : null;
+    const cats    = [...new Set(this.productos.map(p => p.categoria).filter(Boolean))];
+    const esPeso  = prod?.unidad === 'kg' || prod?.unidad === 'g';
+    const tipo    = PS.businessData?.tipoNegocio || 'otro';
+
+    // Configuración por tipo de negocio
+    const cfg = {
+      kiosco:     { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false },
+      ropa:       { balanza: false, vencimiento: false, envio: true,  talle: true,  color: true  },
+      comida:     { balanza: true,  vencimiento: true,  envio: true,  talle: false, color: false },
+      verduleria: { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false },
+      farmacia:   { balanza: false, vencimiento: true,  envio: false, talle: false, color: false },
+      electronica:{ balanza: false, vencimiento: false, envio: true,  talle: false, color: false },
+      ferreteria: { balanza: false, vencimiento: false, envio: false, talle: false, color: false },
+      otro:       { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false },
+    }[tipo] || { balanza: true, vencimiento: true, envio: false, talle: false, color: false };
 
     openModal(`
       <div class="modal-header">
@@ -215,7 +238,8 @@ const Stock = {
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
 
-      <!-- Selector de unidad primero, para que el usuario elija antes de ver los campos -->
+      <!-- Selector balanza — solo rubros que lo necesitan -->
+      ${cfg.balanza ? `
       <div class="form-group" style="margin-bottom:20px;">
         <label>Tipo de producto</label>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
@@ -227,8 +251,8 @@ const Stock = {
             <input type="radio" name="prod-tipo" value="unidad" ${!esPeso ? 'checked' : ''}
               style="accent-color:var(--green-primary); width:16px; height:16px;">
             <div>
-              <div style="font-weight:700; font-size:13px; color:${!esPeso ? 'var(--green-primary)' : 'var(--text-primary)'};">Por unidad</div>
-              <div style="font-size:11px; color:var(--text-secondary);">Ropa, calzado, electro...</div>
+              <div style="font-weight:700; font-size:13px;">Por unidad</div>
+              <div style="font-size:11px; color:var(--text-secondary);">Precio fijo por unidad</div>
             </div>
           </label>
           <label id="tipo-peso-label" onclick="Stock.setTipo('kg')"
@@ -239,21 +263,21 @@ const Stock = {
             <input type="radio" name="prod-tipo" value="kg" ${esPeso ? 'checked' : ''}
               style="accent-color:var(--green-primary); width:16px; height:16px;">
             <div>
-              <div style="font-weight:700; font-size:13px; color:${esPeso ? 'var(--green-primary)' : 'var(--text-primary)'};">Por peso / balanza</div>
-              <div style="font-size:11px; color:var(--text-secondary);">Fiambres, quesos, carnes — precio por kg, venta en gramos</div>
+              <div style="font-weight:700; font-size:13px;">Por peso / balanza</div>
+              <div style="font-size:11px; color:var(--text-secondary);">Precio por kg, venta en gramos</div>
             </div>
           </label>
         </div>
-        <!-- Aviso visible cuando es por peso -->
         <div id="peso-aviso" style="display:${esPeso ? 'flex' : 'none'}; align-items:center; gap:8px;
              margin-top:10px; padding:10px 12px; background:rgba(126,211,33,0.08);
              border:1px solid var(--border-green); border-radius:var(--radius-md); font-size:12px; color:var(--green-primary);">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Al vender este producto se abrirá la calculadora de balanza automáticamente. El precio es por kilogramo.
+          Al vender se abrirá la calculadora de balanza. El precio es por kilogramo.
         </div>
       </div>
+      ` : ''}
 
       <input type="hidden" id="prod-unidad" value="${prod?.unidad || 'unidad'}">
 
@@ -365,6 +389,78 @@ const Stock = {
           <label>Descripción</label>
           <input type="text" id="prod-desc" value="${prod?.descripcion || ''}">
         </div>
+
+        <!-- Fecha de vencimiento — solo rubros que lo necesitan -->
+        ${cfg.vencimiento ? `
+        <div class="form-group" style="grid-column:1/-1;">
+          <label style="display:flex; align-items:center; gap:6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Fecha de vencimiento
+            <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
+          </label>
+          <input type="date" id="prod-vencimiento"
+            value="${prod?.vencimiento || ''}"
+            min="${new Date().toISOString().split('T')[0]}">
+          ${prod?.vencimiento ? (() => {
+            const dias = Math.ceil((new Date(prod.vencimiento) - new Date()) / (1000*60*60*24));
+            const color = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--green-primary)';
+            const texto = dias <= 0 ? 'Vencido' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`;
+            return `<div style="font-size:11px; color:${color}; margin-top:4px; font-weight:600;">⚠ ${texto}</div>`;
+          })() : ''}
+        </div>
+        ` : ''}
+
+        <!-- Talle y Color — solo indumentaria -->
+        ${cfg.talle ? `
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>
+            </svg>
+            Talle <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
+          </label>
+          <input type="text" id="prod-talle" value="${prod?.talle || ''}" placeholder="XS, S, M, L, XL, 38, 40...">
+        </div>
+        ` : ''}
+
+        ${cfg.color ? `
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/>
+              <circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/>
+              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+            </svg>
+            Color <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
+          </label>
+          <input type="text" id="prod-color" value="${prod?.color || ''}" placeholder="Rojo, Azul marino, Negro...">
+        </div>
+        ` : ''}
+
+        <!-- Envío — indumentaria, electrónica, comida -->
+        ${cfg.envio ? `
+        <div class="form-group" style="grid-column:1/-1;">
+          <label style="display:flex; align-items:center; gap:6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+            Costo de envío
+            <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
+          </label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
+            <input type="number" id="prod-envio" value="${prod?.costoEnvio || ''}" min="0" step="0.01"
+              style="padding-left:26px;" placeholder="0 = envío gratis">
+          </div>
+        </div>
+        ` : ''}
+
       </div>
 
       <div class="form-group">
@@ -427,16 +523,20 @@ const Stock = {
   },
 
   async guardar(id) {
-    const nombre   = document.getElementById('prod-nombre').value.trim();
-    const precio   = parseFloat(document.getElementById('prod-precio').value);
-    const costo    = parseFloat(document.getElementById('prod-costo').value) || null;
-    const stock    = parseInt(document.getElementById('prod-stock').value) || 0;
-    const codigo   = document.getElementById('prod-codigo').value.trim();
-    const barcode  = document.getElementById('prod-barcode').value.trim();
-    const cat      = document.getElementById('prod-cat').value.trim();
-    const unidad   = document.getElementById('prod-unidad').value;
-    const desc     = document.getElementById('prod-desc').value.trim();
-    const activo   = document.getElementById('prod-activo').checked;
+    const nombre      = document.getElementById('prod-nombre').value.trim();
+    const precio      = parseFloat(document.getElementById('prod-precio').value);
+    const costo       = parseFloat(document.getElementById('prod-costo').value) || null;
+    const stock       = parseInt(document.getElementById('prod-stock').value) || 0;
+    const codigo      = document.getElementById('prod-codigo').value.trim();
+    const barcode     = document.getElementById('prod-barcode').value.trim();
+    const cat         = document.getElementById('prod-cat').value.trim();
+    const unidad      = document.getElementById('prod-unidad').value;
+    const desc        = document.getElementById('prod-desc').value.trim();
+    const activo      = document.getElementById('prod-activo').checked;
+    const vencimiento = document.getElementById('prod-vencimiento')?.value || null;
+    const talle       = document.getElementById('prod-talle')?.value?.trim() || null;
+    const color       = document.getElementById('prod-color')?.value?.trim() || null;
+    const costoEnvio  = parseFloat(document.getElementById('prod-envio')?.value) || null;
 
     if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
     if (isNaN(precio) || precio < 0) { showToast('Precio inválido', 'error'); return; }
@@ -445,11 +545,16 @@ const Stock = {
       nombre, precio, stock, activo, unidad,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
-    if (costo) data.precioCosto = costo;
-    if (codigo) data.codigo = codigo;
-    if (barcode) data.codigoBarra = barcode;
-    if (cat) data.categoria = cat;
-    if (desc) data.descripcion = desc;
+    if (costo)       data.precioCosto  = costo;
+    if (codigo)      data.codigo       = codigo;
+    if (barcode)     data.codigoBarra  = barcode;
+    if (cat)         data.categoria    = cat;
+    if (desc)        data.descripcion  = desc;
+    if (vencimiento) data.vencimiento  = vencimiento;
+    else             data.vencimiento  = null;
+    if (talle)       data.talle        = talle;
+    if (color)       data.color        = color;
+    if (costoEnvio)  data.costoEnvio   = costoEnvio;
 
     try {
       const col = db.collection('businesses').doc(PS.businessId).collection('productos');

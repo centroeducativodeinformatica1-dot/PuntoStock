@@ -894,15 +894,42 @@ const Admin = {
               </label>
             </td>
             <td>
-              <div style="display:flex; gap:6px; align-items:center;">
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                 <button class="btn btn-sm btn-secondary"
-                  onclick="Admin.extenderTrial('${n.id}', '${n.name}')">
-                  +Trial
+                  onclick="Admin.gestionarTrial('${n.id}', '${n.name}')"
+                  title="Gestionar días de trial">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Trial
                 </button>
                 <button class="btn btn-sm btn-secondary"
-                  onclick="Admin.editarNegocios('${n.id}', ${n.cantidadNegocios||1}, '${n.name}')">
-                  Negocios
+                  onclick="Admin.editarNegocios('${n.id}', ${n.cantidadNegocios||1}, '${n.name}')"
+                  title="Editar cantidad de negocios">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  </svg>
+                  Negos
                 </button>
+                <button class="btn btn-sm btn-secondary"
+                  onclick="Admin.exportarStock('${n.id}', '${n.name}')"
+                  title="Exportar stock a Excel">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Export
+                </button>
+                <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;"
+                  title="Importar stock desde Excel">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Import
+                  <input type="file" accept=".csv,.xlsx,.xls" style="display:none;"
+                    onchange="Admin.importarStock('${n.id}', '${n.name}', this)">
+                </label>
               </div>
             </td>
           </tr>
@@ -958,7 +985,193 @@ const Admin = {
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   },
 
-  // ── Gestionar días de trial ───────────────────────────────
+  // ── Exportar stock de un negocio ─────────────────────────
+  async exportarStock(bizId, bizName) {
+    showToast('Preparando exportación...', 'info');
+    try {
+      // Cargar SheetJS
+      if (!window.XLSX) {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+
+      const snap = await db.collection('businesses').doc(bizId).collection('productos').get();
+      const productos = [];
+      snap.forEach(d => productos.push({ id: d.id, ...d.data() }));
+
+      if (!productos.length) { showToast('Este negocio no tiene productos', 'warning'); return; }
+
+      const data = productos.map(p => ({
+        'Nombre':           p.nombre || '',
+        'Precio venta':     p.precio || 0,
+        'Precio costo':     p.precioCosto || '',
+        'Stock':            p.stock || 0,
+        'Categoría':        p.categoria || '',
+        'Código / SKU':     p.codigo || '',
+        'Código de barras': p.codigoBarra || '',
+        'Unidad':           p.unidad || 'unidad',
+        'Vencimiento':      p.vencimiento || '',
+        'Talle':            p.talle || '',
+        'Color':            p.color || '',
+        'Activo':           p.activo !== false ? 'SI' : 'NO',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      ws['!cols'] = [
+        {wch:30},{wch:14},{wch:14},{wch:8},{wch:18},
+        {wch:16},{wch:18},{wch:10},{wch:14},{wch:10},{wch:14},{wch:8}
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+      const nombre = `stock-${bizName.replace(/[^a-z0-9]/gi,'-')}-${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.xlsx`;
+      XLSX.writeFile(wb, nombre);
+      showToast(`${productos.length} productos exportados — ${bizName}`, 'success');
+    } catch (e) {
+      showToast('Error al exportar: ' + e.message, 'error');
+    }
+  },
+
+  // ── Importar stock a un negocio ───────────────────────────
+  async importarStock(bizId, bizName, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    try {
+      // Cargar SheetJS
+      if (!window.XLSX) {
+        showToast('Cargando lector...', 'info');
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+
+      let rows = [], headers = [];
+      const isXLSX = file.name.match(/\.xlsx?$/i);
+
+      if (isXLSX) {
+        const buf = await file.arrayBuffer();
+        const wb  = XLSX.read(buf, { type: 'array' });
+        const ws  = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        headers = data[0].map(h => String(h).toLowerCase().trim());
+        rows    = data.slice(1).filter(r => r.length).map(r => headers.map((_,i) => String(r[i]??'')));
+      } else {
+        const text = await file.text();
+        const lines = text.split('\n').filter(l => l.trim());
+        const parse = l => { const res=[]; let cur='',q=false; for(const c of l){if(c==='"')q=!q;else if(c===','&&!q){res.push(cur.trim());cur='';}else cur+=c;} res.push(cur.trim()); return res; };
+        headers = parse(lines[0]).map(h => h.toLowerCase().replace(/"/g,''));
+        rows    = lines.slice(1).map(parse);
+      }
+
+      const gi = (...names) => names.map(n => headers.findIndex(h => h.includes(n))).find(i => i >= 0) ?? -1;
+      const iN = gi('nombre','name','producto'); const iP = gi('precio','price','venta');
+      const iC = gi('costo','cost');             const iS = gi('stock','cantidad');
+      const iCat = gi('categor');                const iCod = gi('código','codigo','sku');
+      const iBar = gi('barra','barcode');         const iU = gi('unidad','unit');
+      const iV = gi('vencim');                    const iT = gi('talle');
+      const iCol = gi('color');
+
+      if (iN < 0) { showToast('El archivo debe tener columna "Nombre"', 'error'); return; }
+
+      const validos = rows.filter(r => r[iN]?.trim());
+      if (!validos.length) { showToast('No se encontraron productos', 'error'); return; }
+
+      // Cargar productos existentes para no duplicar
+      const existSnap = await db.collection('businesses').doc(bizId).collection('productos').get();
+      const existentes = new Set();
+      existSnap.forEach(d => {
+        const data = d.data();
+        if (data.nombre) existentes.add(data.nombre.toLowerCase());
+        if (data.codigo) existentes.add(data.codigo.toLowerCase());
+      });
+
+      openModal(`
+        <div class="modal-header">
+          <h3 class="modal-title">Importar a — ${bizName}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
+                    padding:12px 16px; margin-bottom:16px;">
+          <div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
+            Vista previa (primeros 5 de ${validos.length}):
+          </div>
+          ${validos.slice(0,5).map(r => `
+            <div style="font-size:12px; padding:6px 0; border-bottom:1px solid var(--border);
+                        display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:600;">${r[iN]}</span>
+              <span style="color:var(--green-primary); font-family:var(--font-mono);">
+                ${iP >= 0 && r[iP] ? formatPrice(parseFloat(r[iP])||0) : ''}
+              </span>
+            </div>
+          `).join('')}
+        </div>
+        <div style="font-size:12px; color:var(--orange); padding:10px 14px; background:rgba(240,165,0,0.08);
+                    border:1px solid rgba(240,165,0,0.2); border-radius:var(--radius-md);">
+          ⚠ Los productos que ya existan no se duplicarán. Negocio destino: <strong>${bizName}</strong>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" style="width:auto;"
+            onclick="Admin._confirmarImportStock('${bizId}', '${bizName}')">
+            Importar ${validos.length} productos
+          </button>
+        </div>
+      `);
+
+      // Guardar para confirmar
+      Admin._pendingImport = { bizId, bizName, validos, iN, iP, iC, iS, iCat, iCod, iBar, iU, iV, iT, iCol, existentes };
+    } catch (e) {
+      showToast('Error: ' + e.message, 'error');
+    }
+    input.value = '';
+  },
+
+  async _confirmarImportStock(bizId, bizName) {
+    const { validos, iN, iP, iC, iS, iCat, iCod, iBar, iU, iV, iT, iCol, existentes } = Admin._pendingImport;
+    closeModal();
+    showToast('Importando...', 'info');
+
+    const colRef = db.collection('businesses').doc(bizId).collection('productos');
+    const batch  = db.batch();
+    let count = 0;
+
+    for (const r of validos) {
+      const nombre = r[iN]?.trim();
+      if (!nombre) continue;
+      if (existentes.has(nombre.toLowerCase())) continue;
+      const codigo = iCod >= 0 ? r[iCod]?.trim() : '';
+      if (codigo && existentes.has(codigo.toLowerCase())) continue;
+
+      batch.set(colRef.doc(), {
+        nombre,
+        precio:      iP >= 0 ? parseFloat(r[iP]) || 0 : 0,
+        precioCosto: iC >= 0 ? parseFloat(r[iC]) || null : null,
+        stock:       iS >= 0 ? parseInt(r[iS]) || 0 : 0,
+        categoria:   iCat >= 0 ? r[iCat]?.trim() || '' : '',
+        codigo:      codigo || '',
+        codigoBarra: iBar >= 0 ? r[iBar]?.trim() || '' : '',
+        unidad:      iU >= 0 ? r[iU]?.trim() || 'unidad' : 'unidad',
+        vencimiento: iV >= 0 ? r[iV]?.trim() || null : null,
+        talle:       iT >= 0 ? r[iT]?.trim() || null : null,
+        color:       iCol >= 0 ? r[iCol]?.trim() || null : null,
+        activo:      true,
+        createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      count++;
+      if (count % 499 === 0) await batch.commit();
+    }
+
+    await batch.commit();
+    showToast(`✅ ${count} productos importados a ${bizName}`, 'success');
+  },
   gestionarTrial(id, nombre) {
     // Calcular días restantes actuales
     db.collection('businesses').doc(id).get().then(snap => {

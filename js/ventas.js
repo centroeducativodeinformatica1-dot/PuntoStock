@@ -206,13 +206,19 @@ const Ventas = {
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
-              ${['Efectivo','Tarjeta','Transferencia','Cuenta corriente'].map(m => `
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;
-                              padding:8px; border:1px solid var(--border); border-radius:6px;
+              ${[
+                { id:'Efectivo',          label:'Efectivo',          icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+                { id:'Tarjeta',           label:'Tarjeta',           icon:'<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' },
+                { id:'Transferencia',     label:'Transferencia',     icon:'<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
+                { id:'Cuenta corriente',  label:'Cta. corriente',    icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
+              ].map(m => `
+                <label style="display:flex; align-items:center; gap:7px; cursor:pointer;
+                              padding:9px 8px; border:1px solid var(--border); border-radius:8px;
                               font-size:12px; font-weight:500; transition:all 0.15s;"
-                       onclick="Ventas.selectPago('${m}')">
-                  <input type="radio" name="pago" value="${m}" style="accent-color:var(--green-primary);">
-                  ${m}
+                       onclick="Ventas.selectPago('${m.id}')">
+                  <input type="radio" name="pago" value="${m.id}" style="accent-color:var(--green-primary); display:none;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; opacity:0.7;">${m.icon}</svg>
+                  ${m.label}
                 </label>
               `).join('')}
             </div>
@@ -226,8 +232,20 @@ const Ventas = {
               </div>
             </div>
 
-            <button class="cobrar-btn" id="cobrar-btn" onclick="Ventas.cobrar()" disabled>Cobrar</button>
-            <button class="btn btn-ghost w-full mt-8" onclick="Ventas.clearCart()" style="font-size:12px;">
+            <button class="cobrar-btn" id="cobrar-btn" onclick="Ventas.cobrar()" disabled
+              style="display:flex; align-items:center; justify-content:center; gap:8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+              Cobrar
+            </button>
+            <button class="btn btn-ghost w-full mt-8" onclick="Ventas.clearCart()"
+              style="font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
               Vaciar carrito
             </button>
           </div>

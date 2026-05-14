@@ -53,6 +53,18 @@ const Dashboard = {
       const stockBajo = [];
       stockBajoSnap.forEach(d => stockBajo.push({ id: d.id, ...d.data() }));
 
+      // Productos próximos a vencer (dentro de 30 días)
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
+      const en30 = new Date(hoy); en30.setDate(hoy.getDate() + 30);
+      const porVencer = [];
+      productosSnap.forEach(d => {
+        const p = { id: d.id, ...d.data() };
+        if (!p.vencimiento) return;
+        const fv = new Date(p.vencimiento);
+        if (fv <= en30) porVencer.push({ ...p, diasRestantes: Math.ceil((fv - hoy) / (1000*60*60*24)) });
+      });
+      porVencer.sort((a,b) => a.diasRestantes - b.diasRestantes);
+
       // Top productos de la semana
       const topProds = {};
       ventasSemanaSnap.forEach(d => {
@@ -194,6 +206,55 @@ const Dashboard = {
                   </div>
                 </div>
               `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Productos por vencer -->
+        ${porVencer.length > 0 ? `
+          <div class="card mt-16">
+            <div class="card-title" style="color:var(--red);">
+              <span style="display:flex; align-items:center; gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Productos próximos a vencer
+              </span>
+              <button class="btn btn-sm btn-secondary" onclick="PS.navigate('stock')">Ver stock</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+              ${porVencer.map(p => {
+                const vencido  = p.diasRestantes <= 0;
+                const urgente  = p.diasRestantes <= 7;
+                const color    = vencido ? 'var(--red)' : urgente ? 'var(--red)' : 'var(--orange)';
+                const bgColor  = vencido ? 'rgba(248,81,73,0.08)' : urgente ? 'rgba(248,81,73,0.06)' : 'rgba(240,165,0,0.06)';
+                const border   = vencido ? 'rgba(248,81,73,0.25)' : urgente ? 'rgba(248,81,73,0.2)' : 'rgba(240,165,0,0.2)';
+                const texto    = vencido ? '¡Vencido!' : p.diasRestantes === 1 ? 'Vence mañana' : p.diasRestantes === 0 ? 'Vence hoy' : `Vence en ${p.diasRestantes} días`;
+                return `
+                  <div style="background:${bgColor}; border:1px solid ${border};
+                              border-radius:var(--radius-md); padding:12px 16px;
+                              display:flex; align-items:center; gap:12px;">
+                    <div style="width:40px; height:40px; border-radius:10px; background:${color}18;
+                                display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.nombre}</div>
+                      <div style="font-size:11px; color:var(--text-secondary);">${p.categoria || ''} · Vence: ${p.vencimiento}</div>
+                    </div>
+                    <div style="text-align:right; flex-shrink:0;">
+                      <div style="font-weight:800; font-size:13px; color:${color};">${texto}</div>
+                      ${!vencido ? `<div style="font-size:10px; color:var(--text-muted);">${p.diasRestantes} días</div>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
         ` : ''}
