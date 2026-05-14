@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PuntoStock — Control Simple. Negocios en Orden.</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/app/manifest.json">
+  <meta name="theme-color" content="#7ED321">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PuntoStock">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="description" content="Sistema de ventas y stock para emprendedores.">
   <link rel="stylesheet" href="../css/styles.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237ED321'/><text y='.9em' font-size='80' x='15' fill='%230D1117' font-weight='900'>P</text></svg>">
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -439,5 +449,17 @@
     img.src = savedTheme === 'light' ? '../logo-light.png' : '../logo-dark.png';
   });
 </script>
+
+<!-- Registrar Service Worker (PWA) -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/app/sw.js')
+        .then(reg => console.log('[PWA] SW registrado:', reg.scope))
+        .catch(err => console.log('[PWA] SW error:', err));
+    });
+  }
+</script>
+
 </body>
 </html>

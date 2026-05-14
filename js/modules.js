@@ -958,39 +958,100 @@ const Admin = {
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   },
 
-  extenderTrial(id, nombre) {
-    openModal(`
-      <div class="modal-header">
-        <h3 class="modal-title">Extender trial — ${nombre}</h3>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-      <div class="form-group">
-        <label>Días adicionales</label>
-        <input type="number" id="ext-dias" value="7" min="1" max="365">
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" style="width:auto;" onclick="Admin.confirmarExtension('${id}')">
-          Extender trial
-        </button>
-      </div>
-    `);
+  // ── Gestionar días de trial ───────────────────────────────
+  gestionarTrial(id, nombre) {
+    // Calcular días restantes actuales
+    db.collection('businesses').doc(id).get().then(snap => {
+      const data = snap.data();
+      const trialEnd = data.trialEnds?.toDate ? data.trialEnds.toDate()
+        : data.trialEnds ? new Date(data.trialEnds) : new Date();
+      const hoy = new Date();
+      hoy.setHours(0,0,0,0);
+      const diasRestantes = Math.max(0, Math.ceil((trialEnd - hoy) / (1000*60*60*24)));
+
+      openModal(`
+        <div class="modal-header">
+          <h3 class="modal-title">Gestionar trial — ${nombre}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
+                    padding:14px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+          <div style="width:48px; height:48px; border-radius:12px; background:var(--orange-muted,rgba(240,165,0,0.1));
+                      display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-muted);">Días restantes actuales</div>
+            <div style="font-size:28px; font-weight:900; font-family:var(--font-mono);
+                        color:${diasRestantes <= 2 ? 'var(--red)' : diasRestantes <= 4 ? 'var(--orange)' : 'var(--green-primary)'};">
+              ${diasRestantes} días
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Establecer días restantes</label>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="number" id="trial-dias" value="${diasRestantes}" min="0" max="365"
+              style="font-size:24px; font-weight:700; text-align:center; font-family:var(--font-mono);">
+            <span style="color:var(--text-secondary); font-size:14px; white-space:nowrap;">días desde hoy</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:6px;">
+            Podés poner 0 para vencer el trial ahora, o cualquier número para extenderlo.
+          </div>
+        </div>
+
+        <!-- Accesos rápidos -->
+        <div style="margin-bottom:20px;">
+          <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;
+                      letter-spacing:0.5px; margin-bottom:8px;">Accesos rápidos</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            ${[1,2,3,5,7,14,30].map(d => `
+              <button onclick="document.getElementById('trial-dias').value=${d}"
+                style="padding:6px 14px; border:1px solid var(--border); border-radius:6px;
+                       background:var(--bg-card); color:var(--text-secondary); font-size:12px;
+                       font-weight:600; cursor:pointer; transition:all 0.15s;"
+                onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
+                onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+                ${d} día${d>1?'s':''}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" style="width:auto;" onclick="Admin.guardarTrial('${id}')">
+            Guardar
+          </button>
+        </div>
+      `);
+    });
   },
 
-  async confirmarExtension(id) {
-    const dias = parseInt(document.getElementById('ext-dias').value) || 7;
+  async guardarTrial(id) {
+    const dias = parseInt(document.getElementById('trial-dias').value);
+    if (isNaN(dias) || dias < 0) { showToast('Ingresá un número válido', 'warning'); return; }
     try {
-      const snap = await db.collection('businesses').doc(id).get();
-      const actual = snap.data().trialEnds?.toDate
-        ? snap.data().trialEnds.toDate()
-        : new Date();
-      const nueva = new Date(Math.max(actual, new Date()));
+      const nueva = new Date();
+      nueva.setHours(0,0,0,0);
       nueva.setDate(nueva.getDate() + dias);
       await db.collection('businesses').doc(id).update({ trialEnds: nueva });
-      showToast(`Trial extendido ${dias} días`, 'success');
+      showToast(`Trial actualizado — ${dias} días restantes`, 'success');
       closeModal();
       Admin.load();
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  },
+
+  extenderTrial(id, nombre) {
+    this.gestionarTrial(id, nombre);
+  },
+
+  async confirmarExtension(id) {
+    await this.guardarTrial(id);
   },
 
   editarNegocios(id, cantActual, nombre) {

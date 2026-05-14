@@ -23,6 +23,8 @@ const Stock = {
   },
 
   render(page) {
+    const esTrial = (PS.businessData?.plan || 'trial') === 'trial';
+
     page.innerHTML = `
       <div class="page-header">
         <div class="page-header-title">Stock (${this.productos.length} productos)</div>
@@ -40,6 +42,40 @@ const Stock = {
             ${[...new Set(this.productos.map(p => p.categoria).filter(Boolean))]
               .map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
+
+          <!-- Importar -->
+          ${esTrial ? `
+            <button class="btn btn-secondary btn-sm" onclick="Stock.bloquearImportExport()"
+              title="Función exclusiva de planes Pro"
+              style="opacity:0.6; position:relative;">
+              ⬆ Importar
+              <span style="position:absolute; top:-6px; right:-6px; background:var(--orange);
+                           color:white; font-size:9px; font-weight:700; padding:1px 5px;
+                           border-radius:4px;">PRO</span>
+            </button>
+          ` : `
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer;" title="Importar desde Excel o CSV">
+              ⬆ Importar Excel/CSV
+              <input type="file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="Stock.importarCSV(this)">
+            </label>
+          `}
+
+          <!-- Exportar -->
+          ${esTrial ? `
+            <button class="btn btn-secondary btn-sm" onclick="Stock.bloquearImportExport()"
+              title="Función exclusiva de planes Pro"
+              style="opacity:0.6; position:relative;">
+              ⬇ Exportar Excel
+              <span style="position:absolute; top:-6px; right:-6px; background:var(--orange);
+                           color:white; font-size:9px; font-weight:700; padding:1px 5px;
+                           border-radius:4px;">PRO</span>
+            </button>
+          ` : `
+            <button class="btn btn-secondary btn-sm" onclick="Stock.exportarCSV()" title="Exportar stock a Excel">
+              ⬇ Exportar Excel
+            </button>
+          `}
+
           <button class="btn btn-primary btn-sm" onclick="Stock.openModal()">+ Nuevo producto</button>
         </div>
       </div>
@@ -509,6 +545,242 @@ const Stock = {
         showToast('Error: ' + e.message, 'error');
       }
     });
+  },
+
+  // ── Bloqueo para plan trial ───────────────────────────────
+  bloquearImportExport() {
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Función exclusiva Pro</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div style="text-align:center; padding:20px 0;">
+        <div style="width:56px; height:56px; background:rgba(240,165,0,0.1); border-radius:50%;
+                    display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h3 style="margin-bottom:8px;">Importar y exportar es Pro</h3>
+        <p style="color:var(--text-secondary); font-size:13px; max-width:280px; margin:0 auto 24px; line-height:1.6;">
+          La importación y exportación de productos está disponible en los planes Pro y Multi-negocio.
+        </p>
+        <a href="https://wa.me/5493624897927?text=Hola%2C%20quiero%20activar%20un%20plan%20Pro%20en%20PuntoStock"
+           target="_blank"
+           style="display:inline-flex; align-items:center; gap:8px; background:#25D366; color:white;
+                  padding:12px 24px; border-radius:10px; font-weight:700; text-decoration:none; font-size:14px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
+          </svg>
+          Contratar plan Pro
+        </a>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
+      </div>
+    `);
+  },
+
+  // ── Exportar XLSX ─────────────────────────────────────────
+  async exportarCSV() {
+    if (!this.productos.length) { showToast('No hay productos para exportar', 'warning'); return; }
+
+    // Cargar SheetJS si no está
+    if (!window.XLSX) {
+      showToast('Preparando exportación...', 'info');
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    // Armar datos para el Excel
+    const data = this.productos.map(p => ({
+      'Nombre':          p.nombre || '',
+      'Precio venta':    p.precio || 0,
+      'Precio costo':    p.precioCosto || '',
+      'Stock':           p.stock || 0,
+      'Categoría':       p.categoria || '',
+      'Código / SKU':    p.codigo || '',
+      'Código de barras': p.codigoBarra || '',
+      'Unidad':          p.unidad || 'unidad',
+      'Activo':          p.activo !== false ? 'SI' : 'NO',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+
+    // Ancho de columnas
+    ws['!cols'] = [
+      { wch: 30 }, // Nombre
+      { wch: 14 }, // Precio venta
+      { wch: 14 }, // Precio costo
+      { wch: 8  }, // Stock
+      { wch: 18 }, // Categoría
+      { wch: 16 }, // Código
+      { wch: 18 }, // Código de barras
+      { wch: 10 }, // Unidad
+      { wch: 8  }, // Activo
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+
+    const nombre = `stock-${(PS.businessData?.name || 'productos').replace(/[^a-z0-9]/gi,'-')}-${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.xlsx`;
+    XLSX.writeFile(wb, nombre);
+    showToast(`${this.productos.length} productos exportados a Excel`, 'success');
+  },
+
+  // ── Importar CSV o XLSX ───────────────────────────────────
+  async importarCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    let rows = [];
+    let headers = [];
+
+    const isXLSX = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+    if (isXLSX) {
+      // Cargar SheetJS
+      if (!window.XLSX) {
+        showToast('Cargando lector de Excel...', 'info');
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      const buffer = await file.arrayBuffer();
+      const wb     = XLSX.read(buffer, { type: 'array' });
+      const ws     = wb.Sheets[wb.SheetNames[0]];
+      const data   = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (data.length < 2) { showToast('El archivo está vacío', 'error'); return; }
+      headers = data[0].map(h => String(h).toLowerCase().trim());
+      rows    = data.slice(1).filter(r => r.length > 0);
+      // Convertir a formato array con mismo índice que headers
+      rows = rows.map(r => headers.map((_, i) => String(r[i] ?? '')));
+    } else {
+      // CSV normal
+      const text  = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { showToast('El archivo está vacío', 'error'); return; }
+      const parseCSVLine = (line) => {
+        const result = []; let cur = '', inQ = false;
+        for (const ch of line) {
+          if (ch === '"') inQ = !inQ;
+          else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else cur += ch;
+        }
+        result.push(cur.trim());
+        return result;
+      };
+      headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/"/g,''));
+      rows    = lines.slice(1).map(l => parseCSVLine(l));
+    }
+
+    const getIdx = (...names) => names.map(n => headers.findIndex(h => h.includes(n))).find(i => i >= 0) ?? -1;
+    const iNombre  = getIdx('nombre', 'name', 'producto', 'descripcion');
+    const iPrecio  = getIdx('precio', 'price', 'venta');
+    const iCosto   = getIdx('costo', 'cost');
+    const iStock   = getIdx('stock', 'cantidad', 'quantity');
+    const iCat     = getIdx('categor');
+    const iCodigo  = getIdx('código', 'codigo', 'sku', 'code');
+    const iBarcode = getIdx('barra', 'barcode', 'ean');
+    const iUnidad  = getIdx('unidad', 'unit');
+
+    if (iNombre < 0) { showToast('No se encontró columna "Nombre"', 'error'); return; }
+
+    const validos = rows.filter(r => r[iNombre]?.trim());
+    if (!validos.length) { showToast('No se encontraron productos válidos', 'error'); return; }
+
+    this._importRows    = validos;
+    this._importHeaders = { iNombre, iPrecio, iCosto, iStock, iCat, iCodigo, iBarcode, iUnidad };
+
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Importar ${validos.length} productos</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md);
+                  padding:12px 16px; margin-bottom:16px;">
+        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">Vista previa (primeros 5):</div>
+        ${validos.slice(0,5).map(r => `
+          <div style="font-size:12px; padding:6px 0; border-bottom:1px solid var(--border);
+                      display:flex; gap:12px; justify-content:space-between; align-items:center;">
+            <span style="font-weight:600;">${r[iNombre]}</span>
+            <span style="color:var(--green-primary); font-family:var(--font-mono);">
+              ${iPrecio >= 0 && r[iPrecio] ? formatPrice(parseFloat(r[iPrecio])||0) : ''}
+            </span>
+          </div>
+        `).join('')}
+        ${validos.length > 5 ? `<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">... y ${validos.length-5} más</div>` : ''}
+      </div>
+      <div style="background:rgba(240,165,0,0.08); border:1px solid rgba(240,165,0,0.2); border-radius:var(--radius-md);
+                  padding:10px 14px; font-size:12px; color:var(--orange);">
+        ⚠ Los productos que ya existan con el mismo nombre o código no se duplicarán.
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;" onclick="Stock.confirmarImport()">
+          Importar ${validos.length} productos
+        </button>
+      </div>
+    `);
+    input.value = '';
+  },
+
+  async confirmarImport() {
+    const { iNombre, iPrecio, iCosto, iStock, iCat, iCodigo, iBarcode, iUnidad } = this._importHeaders;
+    const rows = this._importRows;
+    if (!rows) return;
+
+    closeModal();
+    showToast('Importando productos...', 'info');
+
+    const batch = db.batch();
+    const bizRef = db.collection('businesses').doc(PS.businessId).collection('productos');
+    let count = 0;
+
+    for (const r of rows) {
+      const nombre = r[iNombre]?.replace(/^"|"$/g,'').trim();
+      if (!nombre) continue;
+
+      // Verificar si ya existe
+      const existe = this.productos.find(p =>
+        p.nombre?.toLowerCase() === nombre.toLowerCase() ||
+        (iCodigo >= 0 && r[iCodigo] && p.codigo === r[iCodigo].replace(/^"|"$/g,''))
+      );
+      if (existe) continue;
+
+      const data = {
+        nombre,
+        precio:      parseFloat(r[iPrecio]) || 0,
+        precioCosto: iCosto >= 0 ? parseFloat(r[iCosto]) || null : null,
+        stock:       iStock >= 0 ? parseInt(r[iStock]) || 0 : 0,
+        categoria:   iCat >= 0 ? r[iCat]?.replace(/^"|"$/g,'').trim() || '' : '',
+        codigo:      iCodigo >= 0 ? r[iCodigo]?.replace(/^"|"$/g,'').trim() || '' : '',
+        codigoBarra: iBarcode >= 0 ? r[iBarcode]?.replace(/^"|"$/g,'').trim() || '' : '',
+        unidad:      iUnidad >= 0 ? r[iUnidad]?.replace(/^"|"$/g,'').trim() || 'unidad' : 'unidad',
+        activo:      true,
+        createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      batch.set(bizRef.doc(), data);
+      count++;
+
+      // Firestore permite 500 ops por batch
+      if (count % 499 === 0) { await batch.commit(); }
+    }
+
+    await batch.commit();
+    showToast(`${count} productos importados correctamente`, 'success');
+    await this.load();
   },
 
   // ══════════════════════════════════════════════════════════
