@@ -351,14 +351,14 @@ const Auth = {
           <label>¿Qué tipo de negocio tenés? *</label>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;" id="tipo-negocio-grid">
             ${[
-              { id:'kiosco',    label:'Kiosco',         sub:'Almacén, bebidas, snacks',       svg:'<path d="M3 3h18v4H3z"/><path d="M3 7v14h18V7"/><path d="M9 7v14"/><path d="M15 7v14"/><path d="M3 11h6"/><path d="M15 11h6"/><path d="M3 15h6"/><path d="M15 15h6"/>',            color:'#F59E0B' },
-              { id:'ropa',      label:'Indumentaria',   sub:'Ropa, calzado, accesorios',      svg:'<path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>',                                                                  color:'#8B5CF6' },
-              { id:'comida',    label:'Comida / Rest.', sub:'Restaurant, delivery, buffet',   svg:'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',                                                           color:'#EF4444' },
-              { id:'verduleria',label:'Verdulería',      sub:'Frutas, verduras, a granel',     svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',                                                                                                                                                                                                                color:'#10B981' },
-              { id:'farmacia',  label:'Farmacia',        sub:'Medicamentos, perfumería',       svg:'<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 0-2-2V9m0 0h18"/>',                                                                                                                                               color:'#0EA5E9' },
-              { id:'electronica',label:'Electrónica',    sub:'Tecnología, celulares, PC',     svg:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',                                                                                                                                        color:'#6366F1' },
-              { id:'ferreteria',label:'Ferretería',      sub:'Herramientas, materiales',       svg:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',                                                                                              color:'#F97316' },
-              { id:'otro',      label:'Otro rubro',      sub:'Personalizado',                  svg:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',                                                                                                                                                     color:'#64748B' },
+              { id:'kiosco',     label:'Kiosco',         sub:'Almacén, bebidas, snacks',      color:'#F59E0B', svg:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>' },
+              { id:'ropa',       label:'Indumentaria',   sub:'Ropa, calzado, accesorios',     color:'#8B5CF6', svg:'<path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>' },
+              { id:'comida',     label:'Comida / Rest.', sub:'Restaurant, delivery, buffet',  color:'#EF4444', svg:'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>' },
+              { id:'verduleria', label:'Verdulería',      sub:'Frutas, verduras, a granel',    color:'#10B981', svg:'<path d="M17 8C8 10 5.9 16.17 3.82 19.34a1 1 0 1 0 1.66 1.1C7 18.62 8.63 16.35 11 15c-1 3-2.5 5-4 6.5a1 1 0 1 0 1.5 1.32C11 20 13 17 14 13c1 3.5.5 6.5-1 9a1 1 0 1 0 1.76.94C17 19 17.5 15 17 11c1.5 1.5 2.5 3.5 2.76 6a1 1 0 1 0 2-.2C21.5 12 19.5 8.5 17 8z"/><path d="M17 8c0-4-2-6-5-6-1 0-2 .5-2 .5"/>' },
+              { id:'farmacia',   label:'Farmacia',        sub:'Medicamentos, perfumería',      color:'#0EA5E9', svg:'<path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>' },
+              { id:'electronica',label:'Electrónica',     sub:'Tecnología, celulares, PC',     color:'#6366F1', svg:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>' },
+              { id:'ferreteria', label:'Ferretería',      sub:'Herramientas, materiales',      color:'#F97316', svg:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' },
+              { id:'otro',       label:'Otro rubro',      sub:'Personalizado',                 color:'#64748B', svg:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' },
             ].map(t => `
               <div onclick="Auth.selTipo('${t.id}')" id="tipo-${t.id}"
                 style="display:flex; align-items:center; gap:10px; padding:12px;
@@ -384,7 +384,10 @@ const Auth = {
           <label>Nombre del negocio *</label>
           <input type="text" id="reg-biz" maxlength="60">
         </div>
-
+        <div class="form-group">
+          <label>Tu nombre *</label>
+          <input type="text" id="reg-name" maxlength="60">
+        </div>
         ${isMulti ? `
         <div class="form-group">
           <label>Cantidad de negocios *</label>

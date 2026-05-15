@@ -148,12 +148,12 @@ const PS = {
 
     // Popup WhatsApp para usuarios no admin (siempre al entrar, no solo nuevos)
     if (!this.isAdmin) {
-     setTimeout(() => Auth.showUpgradePopup({
-  businessName: this.businessData?.name || '',
-  email: this.user?.email || '',
-  plan: this.businessData?.planSolicitado || this.businessData?.plan || 'trial',
-  cantBiz: this.businessData?.cantidadNegocios || 1
-}), 1200);
+      setTimeout(() => Auth.showUpgradePopup({
+        businessName: this.businessData?.name || '',
+        email: this.user?.email || '',
+        plan: this.businessData?.planSolicitado || this.businessData?.plan || 'trial',
+        cantBiz: this.businessData?.cantidadNegocios || 1
+      }), 1200);
     }
 
     // Tidio solo para usuarios con plan trial
