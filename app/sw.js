@@ -46,8 +46,11 @@ self.addEventListener('fetch', e => {
   // Solo manejar requests GET
   if (e.request.method !== 'GET') return;
 
-  // No interceptar Firebase ni APIs externas
+  // Solo manejar URLs http/https — ignorar chrome-extension, data, etc.
   const url = e.request.url;
+  if (!url.startsWith('http')) return;
+
+  // No interceptar Firebase ni APIs externas
   if (
     url.includes('firestore.googleapis.com') ||
     url.includes('firebase') ||

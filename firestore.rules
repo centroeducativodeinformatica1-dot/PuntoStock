@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ──────────────────────────────────────────────
     function isAuth() {
       return request.auth != null;
     }
@@ -16,10 +15,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function ownsBusinesss(businessId) {
+    function ownsBusiness(businessId) {
       return isAuth() && (
         request.auth.uid == businessId ||
-        getUserData().businessIds.hasAny([businessId])
+        (getUserData().businessIds != null && getUserData().businessIds.hasAny([businessId]))
       );
     }
 
@@ -33,19 +32,18 @@ service cloud.firestore {
 
     // ── Negocios ──────────────────────────────────────────────
     match /businesses/{businessId} {
-      allow read:   if ownsBusinesss(businessId) || isAdmin();
-      allow create: if isAuth() && request.auth.uid == businessId;
-      allow update: if ownsBusinesss(businessId) || isAdmin();
+      allow read:   if ownsBusiness(businessId) || isAdmin();
+      allow create: if isAuth();
+      allow update: if ownsBusiness(businessId) || isAdmin();
       allow delete: if isAdmin();
 
-      // Sub-colecciones — solo el owner del negocio o admin
+      // Sub-colecciones
       match /{collection}/{docId} {
-        allow read, write: if ownsBusinesss(businessId) || isAdmin();
+        allow read, write: if ownsBusiness(businessId) || isAdmin();
       }
 
-      // Sub-colecciones anidadas (por si acaso)
-      match /{collection}/{docId}/{subCollection}/{subDocId} {
-        allow read, write: if ownsBusinesss(businessId) || isAdmin();
+      match /{collection}/{docId}/{sub}/{subDocId} {
+        allow read, write: if ownsBusiness(businessId) || isAdmin();
       }
     }
   }
