@@ -1,5 +1,5 @@
-// PuntoStock Service Worker v1
-const CACHE = 'puntostock-v1';
+// PuntoStock Service Worker v3
+const CACHE = 'puntostock-v3';
 
 const ASSETS = [
   '/app/',
