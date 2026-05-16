@@ -650,6 +650,7 @@ const Stock = {
   },
 
 
+  togglePromo(activa) {
     document.getElementById('promo-opciones').style.display = activa ? 'block' : 'none';
     if (!activa) {
       document.getElementById('promo-tipo-seleccionado').value = '';
