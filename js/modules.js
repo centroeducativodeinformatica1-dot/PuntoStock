@@ -869,15 +869,7 @@ const Admin = {
               <div style="font-size:11px; color:var(--text-muted);">${n.phone || ''}</div>
             </td>
             <td>
-              <select onchange="Admin.cambiarRubro('${n.id}', this.value)"
-                style="padding:4px 8px; font-size:12px; max-width:130px; border-radius:6px;">
-                <option value="">— Sin definir —</option>
-                ${[
-                  ['kiosco','🏪 Kiosco'],['ropa','👗 Ropa'],['comida','🍔 Comida'],
-                  ['verduleria','🥦 Verdulería'],['farmacia','💊 Farmacia'],
-                  ['electronica','📱 Electrónica'],['ferreteria','🔧 Ferretería'],['otro','🏢 Otro']
-                ].map(([v,l]) => `<option value="${v}" ${n.tipoNegocio===v?'selected':''}>${l}</option>`).join('')}
-              </select>
+              ${Admin.rubroSelect(n.id, n.tipoNegocio)}
             </td>
             <td>
               <span class="badge ${Admin.planBadgeClass(n.planSolicitado)}" style="font-size:10px;">
@@ -994,6 +986,97 @@ const Admin = {
       await db.collection('businesses').doc(id).update({ active });
       showToast(`${nombre}: ${active ? 'Activado' : 'Desactivado'}`, active ? 'success' : 'warning');
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  },
+
+  _rubrosMeta: {
+    '':           { label: 'Sin definir', svg: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-5h2v2h-2zm0-8h2v6h-2z"/>' },
+    kiosco:       { label: 'Kiosco',      svg: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' },
+    ropa:         { label: 'Ropa',        svg: '<path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>' },
+    comida:       { label: 'Comida',      svg: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>' },
+    verduleria:   { label: 'Verdulería',  svg: '<path d="M12 22V12m0 0C12 7 7 2 2 2c0 5 5 10 10 10zm0 0c0-5 5-10 10-10-5 0-10 5-10 10z"/>' },
+    farmacia:     { label: 'Farmacia',    svg: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="12" y1="9" x2="12" y2="15"/>' },
+    electronica:  { label: 'Electrónica', svg: '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
+    ferreteria:   { label: 'Ferretería',  svg: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' },
+    otro:         { label: 'Otro',        svg: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>' },
+  },
+
+  rubroSelect(id, actual) {
+    const meta = this._rubrosMeta[actual || ''] || this._rubrosMeta[''];
+    const uid  = 'rubro-dd-' + id.replace(/[^a-z0-9]/gi,'');
+    const items = Object.entries(this._rubrosMeta).map(([v, m]) => {
+      const sel = (actual || '') === v;
+      return `<div onclick="Admin._rubroElegir('${id}','${uid}','${v}')"
+        style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
+               border-radius:6px;transition:background 0.15s;
+               background:${sel?'var(--green-muted)':'transparent'};
+               color:${sel?'var(--green-primary)':'var(--text-primary)'};"
+        onmouseenter="if(this.style.background==='transparent')this.style.background='var(--bg-secondary)'"
+        onmouseleave="this.style.background='${sel?'var(--green-muted)':'transparent'}'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="flex-shrink:0;opacity:0.75;">${m.svg}</svg>
+        <span style="font-size:12px;white-space:nowrap;">${m.label}</span>
+      </div>`;
+    }).join('');
+
+    return `
+      <div style="position:relative;display:inline-block;" id="${uid}-wrap">
+        <button onclick="Admin._rubroToggle('${uid}')"
+          style="display:flex;align-items:center;gap:6px;padding:5px 10px;
+                 background:var(--bg-card);border:1px solid var(--border);
+                 border-radius:6px;cursor:pointer;font-size:12px;
+                 color:var(--text-primary);white-space:nowrap;min-width:120px;
+                 justify-content:space-between;" id="${uid}-btn">
+          <span style="display:flex;align-items:center;gap:6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="opacity:0.7;">${meta.svg}</svg>
+            <span id="${uid}-label">${meta.label}</span>
+          </span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div id="${uid}-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;
+             z-index:999;background:var(--bg-card);border:1px solid var(--border);
+             border-radius:8px;padding:4px;min-width:150px;
+             box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+          ${items}
+        </div>
+      </div>`;
+  },
+
+  _rubroToggle(uid) {
+    const menu = document.getElementById(uid+'-menu');
+    if (!menu) return;
+    const isOpen = menu.style.display !== 'none';
+    // Cerrar todos los demás
+    document.querySelectorAll('[id$="-menu"]').forEach(m => { if(m!==menu) m.style.display='none'; });
+    menu.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+      // Click fuera cierra
+      setTimeout(() => {
+        const handler = (e) => {
+          if (!menu.closest('[id$="-wrap"]')?.contains(e.target)) {
+            menu.style.display = 'none';
+            document.removeEventListener('click', handler);
+          }
+        };
+        document.addEventListener('click', handler);
+      }, 0);
+    }
+  },
+
+  async _rubroElegir(id, uid, valor) {
+    document.getElementById(uid+'-menu').style.display = 'none';
+    const meta = Admin._rubrosMeta[valor] || Admin._rubrosMeta[''];
+    // Actualizar botón
+    const labelEl = document.getElementById(uid+'-label');
+    const btnEl   = document.getElementById(uid+'-btn');
+    if (labelEl) labelEl.textContent = meta.label;
+    if (btnEl) {
+      const svgEl = btnEl.querySelector('span > svg');
+      if (svgEl) svgEl.innerHTML = meta.svg;
+    }
+    await Admin.cambiarRubro(id, valor);
   },
 
   async cambiarRubro(id, tipoNegocio) {
@@ -1395,14 +1478,14 @@ const Config = {
               color:var(--text-primary); font-family:var(--font); font-size:13px;">
               <option value="">— Sin definir —</option>
               ${[
-                ['kiosco','🏪 Kiosco / Almacén'],
-                ['ropa','👗 Indumentaria / Ropa'],
-                ['comida','🍔 Gastronomía / Comida'],
-                ['verduleria','🥦 Verdulería / Frutería'],
-                ['farmacia','💊 Farmacia / Dietética'],
-                ['electronica','📱 Electrónica / Tecnología'],
-                ['ferreteria','🔧 Ferretería / Materiales'],
-                ['otro','🏢 Otro'],
+                ['kiosco','Kiosco / Almacén'],
+                ['ropa','Indumentaria / Ropa'],
+                ['comida','Gastronomía / Comida'],
+                ['verduleria','Verdulería / Frutería'],
+                ['farmacia','Farmacia / Dietética'],
+                ['electronica','Electrónica / Tecnología'],
+                ['ferreteria','Ferretería / Materiales'],
+                ['otro','Otro'],
               ].map(([v,l]) => `<option value="${v}" ${biz.tipoNegocio===v?'selected':''}>${l}</option>`).join('')}
             </select>
             <div style="font-size:11px; color:var(--text-muted); margin-top:5px;">
