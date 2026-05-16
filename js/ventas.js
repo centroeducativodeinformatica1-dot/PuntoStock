@@ -689,83 +689,175 @@ const Ventas = {
     }
   },
 
-  loadZXing() {
-    return new Promise((resolve, reject) => {
-      if (window.ZXing) { resolve(); return; }
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
-      script.onload = resolve;
-      script.onerror = () => { console.warn('ZXing no cargó'); resolve(); };
-      document.head.appendChild(script);
+  _loadScanLib() {
+    return new Promise((resolve) => {
+      // Intentar BarcodeDetector nativo (Chrome Android, Edge) — el más rápido
+      if (window.BarcodeDetector) { resolve('native'); return; }
+      // Fallback: html5-qrcode (más confiable que ZXing UMD)
+      if (window.Html5Qrcode) { resolve('h5q'); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+      s.onload  = () => resolve('h5q');
+      s.onerror = () => {
+        // último recurso: ZXing
+        const z = document.createElement('script');
+        z.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
+        z.onload  = () => resolve('zxing');
+        z.onerror = () => resolve(null);
+        document.head.appendChild(z);
+      };
+      document.head.appendChild(s);
     });
   },
 
-  startCameraScan(video) {
-    const canvas = document.getElementById('camera-canvas');
+  async startCameraScan(video) {
     const status = document.getElementById('camera-status');
+    if (status) status.textContent = 'Cargando lector...';
 
-    if (!window.ZXing) {
-      // Sin librería: no podemos escanear pero la cámara queda activa
+    const lib = await this._loadScanLib();
+    if (!lib) {
       if (status) status.textContent = 'Lector no disponible. Usá el escáner físico.';
       return;
     }
 
-    try {
-      const hints   = new Map();
-      const formats = [
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.EAN_8,
-        ZXing.BarcodeFormat.CODE_128,
-        ZXing.BarcodeFormat.CODE_39,
-        ZXing.BarcodeFormat.QR_CODE,
-        ZXing.BarcodeFormat.UPC_A,
-        ZXing.BarcodeFormat.UPC_E,
-        ZXing.BarcodeFormat.DATA_MATRIX,
-        ZXing.BarcodeFormat.ITF,
-        ZXing.BarcodeFormat.CODABAR
-      ];
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    if (status) status.textContent = 'Apuntá el código de barras al recuadro';
 
+    // ── Opción A: BarcodeDetector nativo ──────────────────────
+    if (lib === 'native') {
+      const detector = new BarcodeDetector({
+        formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code','itf','codabar','data_matrix']
+      });
+      let lastCode = '', lastTime = 0;
+      this._scanInterval = setInterval(async () => {
+        if (!this.cameraActive || video.readyState < 2) return;
+        try {
+          const barcodes = await detector.detect(video);
+          if (!barcodes.length) return;
+          const code = barcodes[0].rawValue;
+          const now  = Date.now();
+          if (code === lastCode && now - lastTime < 2000) return;
+          lastCode = code; lastTime = now;
+          if (status) status.textContent = `Código: ${code}`;
+          this._beep(); this.stopCamera(); this.addByCode(code);
+        } catch(e) {}
+      }, 200);
+      return;
+    }
+
+    // ── Opción B: html5-qrcode (canvas polling) ───────────────
+    if (lib === 'h5q') {
+      const canvas = document.getElementById('camera-canvas');
+      const ctx    = canvas.getContext('2d');
+      let lastCode = '', lastTime = 0;
+      this._scanInterval = setInterval(async () => {
+        if (!this.cameraActive || video.readyState < 2) return;
+        try {
+          canvas.width  = video.videoWidth  || 640;
+          canvas.height = video.videoHeight || 480;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          // html5-qrcode expone el decoder interno
+          const result = await Html5Qrcode.scanFile
+            ? null  // api v2 no tiene scanFile desde canvas directo
+            : null;
+          // Usamos su clase interna QrcodeDecoder si disponible
+          if (!this._h5decoder) {
+            this._h5decoder = new Html5QrcodeShim(
+              'camera-canvas', false, 300, 300, null
+            );
+          }
+        } catch(e) {}
+      }, 250);
+
+      // Mejor: usar html5-qrcode directamente sobre el stream
+      clearInterval(this._scanInterval);
+      this._scanInterval = null;
+      await this._startH5QScan(status);
+      return;
+    }
+
+    // ── Opción C: ZXing fallback ──────────────────────────────
+    if (lib === 'zxing' && window.ZXing) {
+      const canvas = document.getElementById('camera-canvas');
+      const ctx    = canvas.getContext('2d');
+      const hints  = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A,   ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.ITF,
+        ZXing.BarcodeFormat.CODABAR
+      ]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
       const reader = new ZXing.MultiFormatReader();
       reader.setHints(hints);
-      const ctx = canvas.getContext('2d');
-      let lastCode = '';
-      let lastTime = 0;
-
+      let lastCode = '', lastTime = 0;
       this._scanInterval = setInterval(() => {
         if (!this.cameraActive || video.readyState < 2) return;
         try {
           canvas.width  = video.videoWidth  || 640;
           canvas.height = video.videoHeight || 480;
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
           const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
           const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
           const result    = reader.decode(bitmap);
-
           if (result) {
-            const code = result.getText();
-            const now  = Date.now();
-            // Evitar doble lectura del mismo código en < 2 segundos
+            const code = result.getText(), now = Date.now();
             if (code === lastCode && now - lastTime < 2000) return;
-            lastCode = code;
-            lastTime = now;
-
+            lastCode = code; lastTime = now;
             if (status) status.textContent = `Código: ${code}`;
-            // Feedback sonoro (beep)
-            this._beep();
-            this.stopCamera();
-            this.addByCode(code);
+            this._beep(); this.stopCamera(); this.addByCode(code);
           }
-        } catch (e) {
-          // NotFoundException = normal, no hay código en el frame
-        }
+        } catch(e) {}
       }, 250);
+    }
+  },
 
-    } catch (e) {
-      console.error('ZXing scan error:', e);
+  async _startH5QScan(status) {
+    // Parar la cámara actual y dejar que html5-qrcode maneje todo
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach(t => t.stop());
+      this.cameraStream = null;
+    }
+    const container = document.getElementById('camera-container');
+    // Crear div temporal para html5-qrcode
+    let scanDiv = document.getElementById('h5q-scan-region');
+    if (!scanDiv) {
+      scanDiv = document.createElement('div');
+      scanDiv.id = 'h5q-scan-region';
+      scanDiv.style.cssText = 'width:100%;';
+      container.prepend(scanDiv);
+    }
+    // Ocultar el video original
+    const video = document.getElementById('camera-video');
+    if (video) video.style.display = 'none';
+
+    const html5QrCode = new Html5Qrcode('h5q-scan-region');
+    this._h5qInstance = html5QrCode;
+    this.cameraActive = true;
+
+    try {
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 150 },
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.CODABAR, Html5QrcodeSupportedFormats.DATA_MATRIX
+          ]
+        },
+        (code) => {
+          if (status) status.textContent = `Código: ${code}`;
+          this._beep();
+          this.stopCamera();
+          this.addByCode(code);
+        },
+        () => {} // error silencioso por frame
+      );
+    } catch(e) {
+      if (status) status.textContent = 'Error al iniciar escáner: ' + e;
     }
   },
 
@@ -785,6 +877,15 @@ const Ventas = {
   },
 
   stopCamera() {
+    // Parar html5-qrcode si está activo
+    if (this._h5qInstance) {
+      this._h5qInstance.stop().catch(() => {});
+      this._h5qInstance = null;
+      const scanDiv = document.getElementById('h5q-scan-region');
+      if (scanDiv) scanDiv.remove();
+      const video = document.getElementById('camera-video');
+      if (video) video.style.display = '';
+    }
     // Apagar linterna antes de cerrar
     if (this._videoTrack && this.torchOn) {
       this._videoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
