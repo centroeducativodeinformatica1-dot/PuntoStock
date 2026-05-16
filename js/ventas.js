@@ -954,11 +954,22 @@ const Ventas = {
     const existing = this.cart.find(i => i.id === prodId);
     if (existing) {
       if (existing.cantidad >= prod.stock) {
-        showToast(`Máximo ${prod.stock} unidades`, 'warning'); return;
+        showToast('Máximo ' + prod.stock + ' unidades', 'warning'); return;
       }
       existing.cantidad++;
     } else {
-      this.cart.push({ id: prodId, nombre: prod.nombre, precio: prod.precio, cantidad: 1, stockMax: prod.stock });
+      this.cart.push({
+        id: prodId, nombre: prod.nombre, precio: prod.precio,
+        cantidad: 1, stockMax: prod.stock,
+        promo: prod.promo || null
+      });
+      // Mostrar alerta de promo la primera vez que se agrega
+      if (prod.promo?.activa && prod.promo?.tipo) {
+        this.renderCart();
+        this.updateTotals();
+        this._mostrarAlertaPromo(prod);
+        return;
+      }
     }
     this.renderCart();
     this.updateTotals();
@@ -1019,12 +1030,57 @@ const Ventas = {
           ${info.desc}
         </div>
 
-        <button onclick="closeModal()" class="btn btn-primary w-full"
+        <button onclick="Ventas._aplicarPromo('${prod.id}', '${prod.promo.tipo}'); closeModal();"
+          class="btn btn-primary w-full"
           style="font-size:15px; padding:14px; font-weight:700;">
-          Entendido
+          Aplicar promo
+        </button>
+        <button onclick="closeModal()" class="btn btn-secondary w-full"
+          style="font-size:13px; padding:10px; margin-top:8px;">
+          Sin promo (precio normal)
         </button>
       </div>
     `);
+  },
+
+  _aplicarPromo(prodId, tipo) {
+    const item = this.cart.find(i => i.id === prodId);
+    if (!item) return;
+    const prod = this.productos.find(p => p.id === prodId);
+    if (!prod) return;
+
+    // Reglas por tipo de promo
+    if (tipo === '2x1') {
+      // Llevar 2, pagar 1 → agrega 1 unidad gratis (precio 0 en el carrito)
+      const gratis = this.cart.find(i => i.id === prodId + '_promo');
+      if (!gratis) {
+        this.cart.push({ id: prodId + '_promo', nombre: prod.nombre + ' (2x1 gratis)', precio: 0, cantidad: 1, stockMax: prod.stock, esPromo: true });
+      }
+    } else if (tipo === '3x1') {
+      // Llevar 3, pagar 1 → agrega 2 gratis
+      const gratis = this.cart.find(i => i.id === prodId + '_promo');
+      if (!gratis) {
+        this.cart.push({ id: prodId + '_promo', nombre: prod.nombre + ' (3x1 gratis x2)', precio: 0, cantidad: 2, stockMax: prod.stock, esPromo: true });
+      }
+    } else if (tipo === '4x1') {
+      const gratis = this.cart.find(i => i.id === prodId + '_promo');
+      if (!gratis) {
+        this.cart.push({ id: prodId + '_promo', nombre: prod.nombre + ' (4x1 gratis x3)', precio: 0, cantidad: 3, stockMax: prod.stock, esPromo: true });
+      }
+    } else if (tipo === '50off2') {
+      // La 2da unidad al 50% → agregar 1 unidad al 50%
+      const mitad = this.cart.find(i => i.id === prodId + '_promo');
+      if (!mitad) {
+        this.cart.push({ id: prodId + '_promo', nombre: prod.nombre + ' (50% dto.)', precio: prod.precio * 0.5, cantidad: 1, stockMax: prod.stock, esPromo: true });
+      }
+    } else if (tipo === '30off') {
+      // 30% off sobre el precio del item actual
+      item.precio = prod.precio * 0.7;
+    }
+
+    showToast('Promo aplicada', 'success', 1500);
+    this.renderCart();
+    this.updateTotals();
   },
 
   mostrarProductoNoEncontrado(code) {
@@ -1342,9 +1398,11 @@ const Ventas = {
         usuario: PS.user.uid
       });
 
-      // Solo descontar stock de productos por unidad
+      // Descontar stock — los items de promo (_promo) descuentan del producto original
       this.cart.filter(i => !i.esPeso).forEach(item => {
-        batch.update(bizRef.collection('productos').doc(item.id), {
+        const realId = item.esPromo ? item.id.replace('_promo', '') : item.id;
+        const ref = bizRef.collection('productos').doc(realId);
+        batch.update(ref, {
           stock: firebase.firestore.FieldValue.increment(-item.cantidad)
         });
       });
@@ -1353,7 +1411,8 @@ const Ventas = {
 
       // Stock local
       this.cart.filter(i => !i.esPeso).forEach(item => {
-        const p = this.productos.find(p => p.id === item.id);
+        const realId = item.esPromo ? item.id.replace('_promo', '') : item.id;
+        const p = this.productos.find(p => p.id === realId);
         if (p) p.stock -= item.cantidad;
       });
 
@@ -1361,13 +1420,24 @@ const Ventas = {
       this.renderCart();
       this.updateTotals();
       this.renderProductos();
-      showToast(`Venta registrada — ${formatPrice(total)}`, 'success');
+      // Resetear botón cobrar
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Cobrar';
+      // Deseleccionar método de pago
+      document.querySelectorAll('[data-pago]').forEach(l => {
+        l.style.border = '2px solid var(--border)';
+        l.style.background = 'transparent';
+        l.style.color = 'var(--text-primary)';
+      });
+      document.querySelectorAll('input[name="pago"]').forEach(r => r.checked = false);
+      document.getElementById('efectivo-section').style.display = 'none';
+      showToast('Venta registrada — ' + formatPrice(total), 'success');
 
     } catch (e) {
       console.error(e);
       showToast('Error al registrar la venta: ' + e.message, 'error');
       btn.disabled = false;
-      btn.textContent = 'Cobrar';
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Cobrar';
     }
   },
 
