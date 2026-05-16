@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function ownsBusiness(businessId) {
+      return isAuth() && (
+        request.auth.uid == businessId ||
+        (getUserData().businessIds != null && getUserData().businessIds.hasAny([businessId]))
+      );
+    }
+
+    // ── Usuarios ──────────────────────────────────────────────
+    match /users/{uid} {
+      allow read:   if request.auth.uid == uid || isAdmin();
+      allow create: if request.auth.uid == uid;
+      allow update: if request.auth.uid == uid || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Negocios ──────────────────────────────────────────────
+    match /businesses/{businessId} {
+      allow read:   if ownsBusiness(businessId) || isAdmin();
+      allow create: if isAuth();
+      allow update: if ownsBusiness(businessId) || isAdmin();
+      allow delete: if isAdmin();
+
+      // Sub-colecciones
+      match /{collection}/{docId} {
+        allow read, write: if ownsBusiness(businessId) || isAdmin();
+      }
+
+      match /{collection}/{docId}/{sub}/{subDocId} {
+        allow read, write: if ownsBusiness(businessId) || isAdmin();
+      }
+    }
+  }
+}
