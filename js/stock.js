@@ -24,202 +24,302 @@ const Stock = {
 
   render(page) {
     const esTrial = (PS.businessData?.plan || 'trial') === 'trial';
+    const isMobile = window.innerWidth < 900;
 
     page.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-title">Stock (${this.productos.length} productos)</div>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <div class="search-input-wrapper">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      <!-- Header mobile-first -->
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+
+        <!-- Fila 1: título + botón principal -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="font-size:18px; font-weight:800;">Stock <span style="font-size:14px; font-weight:500; color:var(--text-muted);">(${this.productos.length})</span></div>
+          <button class="btn btn-primary btn-sm" onclick="Stock.openModal()"
+            style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            <input type="text" id="stock-search" placeholder="Buscar producto..."
-              oninput="Stock.filter(this.value)">
-          </div>
+            Nuevo producto
+          </button>
+        </div>
+
+        <!-- Fila 2: búsqueda -->
+        <div class="search-input-wrapper" style="max-width:100%;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="stock-search" placeholder="Buscar producto..."
+            oninput="Stock.filter(this.value)">
+        </div>
+
+        <!-- Fila 3: filtro cat + import/export (colapsable en mobile) -->
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <select id="stock-cat-filter" onchange="Stock.filterCat(this.value)"
-            style="padding:8px 12px; max-width:160px;">
+            style="flex:1; min-width:140px; padding:8px 12px;">
             <option value="">Todas las categorías</option>
             ${[...new Set(this.productos.map(p => p.categoria).filter(Boolean))]
               .map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
 
-          <!-- Importar -->
           ${esTrial ? `
             <button class="btn btn-secondary btn-sm" onclick="Stock.bloquearImportExport()"
-              title="Función exclusiva de planes Pro"
-              style="opacity:0.6; position:relative;">
-              ⬆ Importar
+              style="opacity:0.6; position:relative; display:flex; align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Importar
+              <span style="position:absolute; top:-6px; right:-6px; background:var(--orange);
+                           color:white; font-size:9px; font-weight:700; padding:1px 5px;
+                           border-radius:4px;">PRO</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="Stock.bloquearImportExport()"
+              style="opacity:0.6; position:relative; display:flex; align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Exportar
               <span style="position:absolute; top:-6px; right:-6px; background:var(--orange);
                            color:white; font-size:9px; font-weight:700; padding:1px 5px;
                            border-radius:4px;">PRO</span>
             </button>
           ` : `
-            <label class="btn btn-secondary btn-sm" style="cursor:pointer;" title="Importar desde Excel o CSV">
-              ⬆ Importar Excel/CSV
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer; display:flex; align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Importar
               <input type="file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="Stock.importarCSV(this)">
             </label>
-          `}
-
-          <!-- Exportar -->
-          ${esTrial ? `
-            <button class="btn btn-secondary btn-sm" onclick="Stock.bloquearImportExport()"
-              title="Función exclusiva de planes Pro"
-              style="opacity:0.6; position:relative;">
-              ⬇ Exportar Excel
-              <span style="position:absolute; top:-6px; right:-6px; background:var(--orange);
-                           color:white; font-size:9px; font-weight:700; padding:1px 5px;
-                           border-radius:4px;">PRO</span>
-            </button>
-          ` : `
-            <button class="btn btn-secondary btn-sm" onclick="Stock.exportarCSV()" title="Exportar stock a Excel">
-              ⬇ Exportar Excel
+            <button class="btn btn-secondary btn-sm" onclick="Stock.exportarCSV()"
+              style="display:flex; align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Exportar
             </button>
           `}
-
-          <button class="btn btn-primary btn-sm" onclick="Stock.openModal()">+ Nuevo producto</button>
         </div>
       </div>
 
-      <!-- Resumen stock -->
-      <div class="stat-grid" style="margin-bottom:20px;">
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Total productos</div>
-          <div class="stat-value" style="font-size:22px;">${this.productos.length}</div>
+      <!-- Stats: 2x2 en mobile, 4x1 en desktop -->
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px;">
+        <div class="stat-card" style="padding:12px 14px;">
+          <div class="stat-label" style="font-size:11px;">TOTAL PRODUCTOS</div>
+          <div class="stat-value" style="font-size:20px;">${this.productos.length}</div>
         </div>
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Valor total stock</div>
-          <div class="stat-value green" style="font-size:22px;">
+        <div class="stat-card" style="padding:12px 14px;">
+          <div class="stat-label" style="font-size:11px;">VALOR STOCK</div>
+          <div class="stat-value green" style="font-size:18px;">
             ${formatPrice(this.productos.reduce((s,p) => s + (p.precio||0)*(p.stock||0), 0))}
           </div>
         </div>
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Stock bajo (≤5)</div>
-          <div class="stat-value" style="font-size:22px; color:var(--orange);">
-            ${this.productos.filter(p => (p.stock||0) <= 5).length}
+        <div class="stat-card" style="padding:12px 14px;">
+          <div class="stat-label" style="font-size:11px;">STOCK BAJO (≤5)</div>
+          <div class="stat-value" style="font-size:20px; color:var(--orange);">
+            ${this.productos.filter(p => (p.stock||0) <= 5 && (p.stock||0) > 0).length}
           </div>
         </div>
-        <div class="stat-card" style="padding:14px 16px;">
-          <div class="stat-label">Sin stock</div>
-          <div class="stat-value" style="font-size:22px; color:var(--red);">
+        <div class="stat-card" style="padding:12px 14px;">
+          <div class="stat-label" style="font-size:11px;">SIN STOCK</div>
+          <div class="stat-value" style="font-size:20px; color:var(--red);">
             ${this.productos.filter(p => (p.stock||0) <= 0).length}
           </div>
         </div>
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Código</th>
-              <th>Categoría</th>
-              <th>Precio venta</th>
-              <th>Precio costo</th>
-              <th>Stock</th>
-              <th>Estado</th>
-              <th>Vencimiento</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="stock-tbody"></tbody>
-        </table>
-      </div>
+      <!-- Lista: cards en mobile, tabla en desktop -->
+      <div id="stock-list-container"></div>
     `;
     this.renderTabla();
   },
 
   renderTabla() {
-    const tbody = document.getElementById('stock-tbody');
-    if (!tbody) return;
+    const container = document.getElementById('stock-list-container');
+    if (!container) return;
+    const isMobile = window.innerWidth < 900;
 
     if (this.filtrados.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="8">
-          <div class="empty-state" style="padding:40px 0;">
-            <div class="empty-state-icon">🔍</div>
-            <h3>Sin resultados</h3>
-          </div>
-        </td></tr>`;
+      container.innerHTML = `
+        <div class="empty-state" style="padding:48px 0;">
+          <div class="empty-state-icon">🔍</div>
+          <h3>Sin resultados</h3>
+          <p>Probá con otro término o categoría</p>
+        </div>`;
       return;
     }
 
-    tbody.innerHTML = this.filtrados.map(p => {
-      const stock = p.stock || 0;
-      const stockClass = stock <= 0 ? 'td-red' : stock <= 5 ? '' : 'td-green';
-      const stockBadge = stock <= 0 ? 'badge-red' : stock <= 5 ? 'badge-orange' : 'badge-green';
-      const stockLabel = stock <= 0 ? 'Sin stock' : stock <= 5 ? 'Stock bajo' : 'En stock';
+    if (isMobile) {
+      // ── CARDS MOBILE ──────────────────────────────────────────
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${this.filtrados.map(p => {
+            const stock = p.stock || 0;
+            const stockColor = stock <= 0 ? 'var(--red)' : stock <= 5 ? 'var(--orange)' : 'var(--green-primary)';
+            const stockLabel = stock <= 0 ? 'Sin stock' : stock <= 5 ? 'Stock bajo' : 'En stock';
+            const stockBadge = stock <= 0 ? 'badge-red' : stock <= 5 ? 'badge-orange' : 'badge-green';
+            const esPeso = p.unidad === 'kg' || p.unidad === 'g';
 
-      return `
-        <tr>
-          <td>
-            <div style="font-weight:600;">${p.nombre}</div>
-            ${p.descripcion ? `<div style="font-size:11px; color:var(--text-muted);">${p.descripcion}</div>` : ''}
-            ${p.promo?.activa ? `
-              <div style="display:inline-flex; align-items:center; gap:4px; margin-top:3px;
-                           background:rgba(240,165,0,0.12); border:1px solid rgba(240,165,0,0.3);
-                           border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; color:var(--orange);">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                  <line x1="7" y1="7" x2="7.01" y2="7"/>
-                </svg>
-                ${p.promo.texto || p.promo.tipo}
-              </div>
-            ` : ''}
-          </td>
-          <td class="td-mono td-muted">${p.codigo || p.codigoBarra || '—'}</td>
-          <td><span class="badge badge-muted">${p.categoria || 'Sin cat.'}</span></td>
-          <td class="td-mono td-green">${formatPrice(p.precio)}${p.unidad === 'kg' || p.unidad === 'g' ? '/kg' : ''}</td>
-          <td class="td-mono td-muted">${p.precioCosto ? formatPrice(p.precioCosto) : '—'}</td>
-          <td>
-            ${p.unidad === 'kg' || p.unidad === 'g'
-              ? '<span class="badge badge-blue" style="font-size:10px;">Por peso / kg</span>'
-              : `<span class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</span>${p.unidadStock && p.unidadStock !== 'unidad' ? `<span style="font-size:10px; color:var(--text-muted); margin-left:3px;">${p.unidadStock}</span>` : ''}`
-            }
-          </td>
-          <td>
-            ${p.unidad === 'kg' || p.unidad === 'g'
-              ? '<span class="badge badge-green">Con balanza</span>'
-              : `<span class="badge ${stockBadge}">${stockLabel}</span>`
-            }
-          </td>
-          <td>
-            ${(() => {
-              if (!p.vencimiento) return '<span style="color:var(--text-muted); font-size:12px;">—</span>';
+            let vencInfo = '';
+            if (p.vencimiento) {
               const dias = Math.ceil((new Date(p.vencimiento) - new Date()) / (1000*60*60*24));
-              const color = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--text-secondary)';
-              const texto = dias <= 0 ? '¡Vencido!' : dias === 1 ? 'Mañana' : `${dias}d`;
-              return `<span style="color:${color}; font-size:12px; font-weight:${dias<=30?700:400};">${p.vencimiento} <span style="font-size:10px;">(${texto})</span></span>`;
-            })()}
-          </td>
-            <td>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})"
-                style="display:flex; align-items:center; gap:4px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Stock
-              </button>
-              <button class="btn btn-sm btn-secondary" onclick="Stock.openModal('${p.id}')"
-                style="display:flex; align-items:center; gap:4px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
-              <button class="btn btn-sm btn-danger" onclick="Stock.eliminar('${p.id}', '${p.nombre}')"
-                style="display:flex; align-items:center; gap:4px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                  <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-                </svg>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+              const vc = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--text-muted)';
+              const vt = dias <= 0 ? 'Vencido' : dias === 1 ? 'Vence mañana' : `Vence en ${dias}d`;
+              vencInfo = `<span style="font-size:11px; color:${vc}; font-weight:600;">${vt}</span>`;
+            }
+
+            return `
+              <div style="background:var(--bg-card); border:1px solid var(--border);
+                          border-radius:var(--radius-lg); padding:14px 16px;">
+                <!-- Fila 1: nombre + precio -->
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                  <div style="flex:1; min-width:0; margin-right:10px;">
+                    <div style="font-weight:700; font-size:15px; line-height:1.2;">${p.nombre}</div>
+                    ${p.categoria ? `<span class="badge badge-muted" style="margin-top:4px; display:inline-block;">${p.categoria}</span>` : ''}
+                    ${p.promo?.activa ? `<span style="display:inline-block; margin-top:4px; margin-left:4px; background:rgba(240,165,0,0.12); border:1px solid rgba(240,165,0,0.3); border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; color:var(--orange);">${p.promo.texto || p.promo.tipo}</span>` : ''}
+                  </div>
+                  <div style="text-align:right; flex-shrink:0;">
+                    <div style="font-size:16px; font-weight:800; color:var(--green-primary);">${formatPrice(p.precio)}${esPeso?'/kg':''}</div>
+                    ${p.precioCosto ? `<div style="font-size:11px; color:var(--text-muted);">Costo: ${formatPrice(p.precioCosto)}</div>` : ''}
+                  </div>
+                </div>
+
+                <!-- Fila 2: stock + código + venc -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                  ${esPeso
+                    ? `<span class="badge badge-blue" style="font-size:11px;">Por peso / balanza</span>`
+                    : `<div style="display:flex; align-items:baseline; gap:4px;">
+                        <span style="font-size:22px; font-weight:800; color:${stockColor}; line-height:1;">${stock}</span>
+                        <span style="font-size:11px; color:var(--text-muted);">${p.unidadStock && p.unidadStock!=='unidad' ? p.unidadStock : 'uds'}</span>
+                       </div>
+                       <span class="badge ${stockBadge}" style="font-size:11px;">${stockLabel}</span>`
+                  }
+                  ${p.codigo || p.codigoBarra ? `<span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${p.codigo || p.codigoBarra}</span>` : ''}
+                  ${vencInfo}
+                </div>
+
+                <!-- Fila 3: acciones -->
+                <div style="display:flex; gap:8px;">
+                  <button onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})"
+                    style="flex:1; padding:9px; background:var(--bg-secondary); border:1px solid var(--border);
+                           border-radius:var(--radius-md); font-size:13px; font-weight:600;
+                           color:var(--text-primary); cursor:pointer; display:flex; align-items:center;
+                           justify-content:center; gap:6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Ajustar stock
+                  </button>
+                  <button onclick="Stock.openModal('${p.id}')"
+                    style="padding:9px 14px; background:var(--bg-secondary); border:1px solid var(--border);
+                           border-radius:var(--radius-md); cursor:pointer; color:var(--text-primary);">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                  <button onclick="Stock.eliminar('${p.id}', '${p.nombre}')"
+                    style="padding:9px 14px; background:rgba(248,81,73,0.08); border:1px solid rgba(248,81,73,0.3);
+                           border-radius:var(--radius-md); cursor:pointer; color:var(--red);">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    } else {
+      // ── TABLA DESKTOP ─────────────────────────────────────────
+      container.innerHTML = `
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Código</th>
+                <th>Categoría</th>
+                <th>Precio venta</th>
+                <th>Precio costo</th>
+                <th>Stock</th>
+                <th>Estado</th>
+                <th>Vencimiento</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.filtrados.map(p => {
+                const stock = p.stock || 0;
+                const stockClass = stock <= 0 ? 'td-red' : stock <= 5 ? '' : 'td-green';
+                const stockBadge = stock <= 0 ? 'badge-red' : stock <= 5 ? 'badge-orange' : 'badge-green';
+                const stockLabel = stock <= 0 ? 'Sin stock' : stock <= 5 ? 'Stock bajo' : 'En stock';
+                return `
+                <tr>
+                  <td>
+                    <div style="font-weight:600;">${p.nombre}</div>
+                    ${p.descripcion ? `<div style="font-size:11px; color:var(--text-muted);">${p.descripcion}</div>` : ''}
+                    ${p.promo?.activa ? `<div style="display:inline-flex; align-items:center; gap:4px; margin-top:3px; background:rgba(240,165,0,0.12); border:1px solid rgba(240,165,0,0.3); border-radius:4px; padding:2px 7px; font-size:10px; font-weight:700; color:var(--orange);">${p.promo.texto || p.promo.tipo}</div>` : ''}
+                  </td>
+                  <td class="td-mono td-muted">${p.codigo || p.codigoBarra || '—'}</td>
+                  <td><span class="badge badge-muted">${p.categoria || 'Sin cat.'}</span></td>
+                  <td class="td-mono td-green">${formatPrice(p.precio)}${p.unidad==='kg'||p.unidad==='g'?'/kg':''}</td>
+                  <td class="td-mono td-muted">${p.precioCosto ? formatPrice(p.precioCosto) : '—'}</td>
+                  <td>
+                    ${p.unidad==='kg'||p.unidad==='g'
+                      ? '<span class="badge badge-blue" style="font-size:10px;">Por peso / kg</span>'
+                      : `<span class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</span>${p.unidadStock && p.unidadStock!=='unidad' ? `<span style="font-size:10px; color:var(--text-muted); margin-left:3px;">${p.unidadStock}</span>` : ''}`
+                    }
+                  </td>
+                  <td>
+                    ${p.unidad==='kg'||p.unidad==='g'
+                      ? '<span class="badge badge-green">Con balanza</span>'
+                      : `<span class="badge ${stockBadge}">${stockLabel}</span>`
+                    }
+                  </td>
+                  <td>
+                    ${(() => {
+                      if (!p.vencimiento) return '<span style="color:var(--text-muted); font-size:12px;">—</span>';
+                      const dias = Math.ceil((new Date(p.vencimiento) - new Date()) / (1000*60*60*24));
+                      const color = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--text-secondary)';
+                      const texto = dias <= 0 ? '¡Vencido!' : dias === 1 ? 'Mañana' : `${dias}d`;
+                      return `<span style="color:${color}; font-size:12px; font-weight:${dias<=30?700:400};">${p.vencimiento} <span style="font-size:10px;">(${texto})</span></span>`;
+                    })()}
+                  </td>
+                  <td>
+                    <div style="display:flex; gap:6px;">
+                      <button class="btn btn-sm btn-secondary" onclick="Stock.ajustarStock('${p.id}', '${p.nombre}', ${stock})"
+                        style="display:flex; align-items:center; gap:4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Stock
+                      </button>
+                      <button class="btn btn-sm btn-secondary" onclick="Stock.openModal('${p.id}')"
+                        style="display:flex; align-items:center; gap:4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
+                      <button class="btn btn-sm btn-danger" onclick="Stock.eliminar('${p.id}', '${p.nombre}')"
+                        style="display:flex; align-items:center; gap:4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
   },
 
   filter(q) {
@@ -1086,27 +1186,18 @@ const Stock = {
       video.srcObject = stream;
       container.style.display = 'block';
 
-      // Linterna
       const track = stream.getVideoTracks()[0];
       this._stockVideoTrack = track;
+
+      // Autofocus continuo
+      await this._aplicarFocoStock(track);
+
       const caps = track.getCapabilities?.() || {};
       const torchBtn = document.getElementById('stock-torch-btn');
       if (torchBtn) torchBtn.style.display = caps.torch ? 'flex' : 'none';
 
-      // Cargar ZXing si no está
-      if (!window.ZXing) {
-        if (status) status.textContent = 'Cargando lector...';
-        await new Promise((resolve) => {
-          if (window.ZXing) { resolve(); return; }
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
-          s.onload = resolve;
-          s.onerror = resolve;
-          document.head.appendChild(s);
-        });
-      }
-
-      if (status) status.textContent = 'Apuntá al código de barras';
+      // Cargar lib y escanear
+      if (status) status.textContent = 'Iniciando...';
       this._iniciarScanStock(video);
 
     } catch (e) {
@@ -1118,53 +1209,184 @@ const Stock = {
     }
   },
 
-  _iniciarScanStock(video) {
-    if (!window.ZXing) return;
-    const canvas  = document.getElementById('stock-camera-canvas');
-    const status  = document.getElementById('stock-camera-status');
-    const ctx     = canvas.getContext('2d');
+  async _aplicarFocoStock(track) {
+    try {
+      const caps = track.getCapabilities?.() || {};
+      const c = {};
+      if (caps.focusMode?.includes('continuous')) c.focusMode = 'continuous';
+      if (caps.zoom) c.zoom = caps.zoom.min;
+      if (Object.keys(c).length) await track.applyConstraints({ advanced: [c] });
+    } catch(e) {}
+  },
 
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX,
-      ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.CODABAR
-    ]);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  async _refocarStock(track) {
+    try {
+      const caps = track.getCapabilities?.() || {};
+      if (caps.focusMode?.includes('single-shot')) {
+        await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+        await new Promise(r => setTimeout(r, 400));
+        if (caps.focusMode?.includes('continuous'))
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    } catch(e) {}
+  },
 
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(hints);
+  async _cargarLibEscan() {
+    if (window.BarcodeDetector) return 'native';
+    if (window.Html5Qrcode)     return 'h5q';
+    return new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+      s.onload  = () => resolve('h5q');
+      s.onerror = () => {
+        const z = document.createElement('script');
+        z.src = 'https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js';
+        z.onload  = () => resolve('zxing');
+        z.onerror = () => resolve(null);
+        document.head.appendChild(z);
+      };
+      document.head.appendChild(s);
+    });
+  },
 
-    this._stockScanInterval = setInterval(() => {
-      if (video.readyState < 2) return;
+  async _iniciarScanStock(video) {
+    const status = document.getElementById('stock-camera-status');
+    if (status) status.textContent = 'Cargando lector...';
+
+    const lib = await this._cargarLibEscan();
+    if (!lib) {
+      if (status) status.textContent = 'Lector no disponible.';
+      return;
+    }
+    if (status) status.textContent = 'Apuntá al código al recuadro';
+
+    // Tap en el video = re-enfocar
+    video.onclick = () => {
+      if (this._stockVideoTrack) this._refocarStock(this._stockVideoTrack);
+      if (status) { status.textContent = 'Enfocando...'; setTimeout(() => { if(status) status.textContent = 'Apuntá al código al recuadro'; }, 800); }
+    };
+
+    const _onCode = (code) => {
+      const input = document.getElementById('prod-barcode');
+      if (input) {
+        input.value = code;
+        input.style.borderColor = 'var(--green-primary)';
+        input.style.boxShadow   = '0 0 0 3px var(--green-muted)';
+      }
+      if (status) status.textContent = `✓ ${code}`;
+      this._beepStock();
+      showToast(`Código escaneado: ${code}`, 'success', 2000);
+      this.stopCamara();
+    };
+
+    // Helper: solo procesar el centro del frame (donde está el recuadro guía)
+    const _cropCenter = (canvas, ctx, vw, vh) => {
+      const cw = Math.floor(vw * 0.65), ch = Math.floor(vh * 0.45);
+      const cx = Math.floor((vw - cw) / 2), cy = Math.floor((vh - ch) / 2);
+      canvas.width = cw; canvas.height = ch;
+      ctx.drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
+    };
+
+    // ── Nativo ────────────────────────────────────────────────
+    if (lib === 'native') {
+      const detector = new BarcodeDetector({
+        formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code','itf','codabar','data_matrix']
+      });
+      const canvas = document.getElementById('stock-camera-canvas');
+      const ctx    = canvas.getContext('2d');
+      let lastCode = '', lastTime = 0, frame = 0;
+      this._stockScanInterval = setInterval(async () => {
+        if (video.readyState < 2) return;
+        try {
+          frame++;
+          const vw = video.videoWidth||640, vh = video.videoHeight||480;
+          if (frame % 2 === 0) { canvas.width=vw; canvas.height=vh; ctx.drawImage(video,0,0,vw,vh); }
+          else { _cropCenter(canvas, ctx, vw, vh); }
+          const barcodes = await detector.detect(canvas);
+          if (!barcodes.length) return;
+          const code = barcodes[0].rawValue, now = Date.now();
+          if (code === lastCode && now - lastTime < 2000) return;
+          lastCode = code; lastTime = now;
+          _onCode(code);
+        } catch(e) {}
+      }, 150);
+      return;
+    }
+
+    // ── html5-qrcode ──────────────────────────────────────────
+    if (lib === 'h5q') {
+      if (this._stockStream) {
+        this._stockStream.getTracks().forEach(t => t.stop());
+        this._stockStream = null;
+      }
+      const container = document.getElementById('stock-camera-container');
+      let scanDiv = document.getElementById('h5q-stock-region');
+      if (!scanDiv) {
+        scanDiv = document.createElement('div');
+        scanDiv.id = 'h5q-stock-region';
+        scanDiv.style.cssText = 'width:100%;';
+        container.prepend(scanDiv);
+      }
+      video.style.display = 'none';
+      const h5q = new Html5Qrcode('h5q-stock-region');
+      this._h5qStockInstance = h5q;
       try {
-        canvas.width  = video.videoWidth  || 640;
-        canvas.height = video.videoHeight || 480;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-        const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-        const result    = reader.decode(bitmap);
+        await h5q.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 150 },
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.UPC_A,   Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.ITF,
+              Html5QrcodeSupportedFormats.CODABAR, Html5QrcodeSupportedFormats.DATA_MATRIX
+            ]
+          },
+          (code) => _onCode(code),
+          () => {}
+        );
+      } catch(e) {
+        if (status) status.textContent = 'Error al iniciar escáner.';
+      }
+      return;
+    }
 
-        if (result) {
-          const code = result.getText();
-          // Poner el código en el input
-          const input = document.getElementById('prod-barcode');
-          if (input) {
-            input.value = code;
-            input.style.borderColor = 'var(--green-primary)';
-            input.style.boxShadow   = '0 0 0 3px var(--green-muted)';
+    // ── ZXing fallback ────────────────────────────────────────
+    if (lib === 'zxing' && window.ZXing) {
+      const canvas = document.getElementById('stock-camera-canvas');
+      const ctx    = canvas.getContext('2d');
+      const hints  = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.CODABAR
+      ]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      const reader = new ZXing.MultiFormatReader();
+      reader.setHints(hints);
+      let lastCode = '', lastTime = 0;
+      let frame2 = 0;
+      this._stockScanInterval = setInterval(() => {
+        if (video.readyState < 2) return;
+        try {
+          frame2++;
+          const vw = video.videoWidth||640, vh = video.videoHeight||480;
+          if (frame2 % 2 === 0) { canvas.width=vw; canvas.height=vh; ctx.drawImage(video,0,0,vw,vh); }
+          else { _cropCenter(canvas, ctx, vw, vh); }
+          const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+          const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+          const result    = reader.decode(bitmap);
+          if (result) {
+            const code = result.getText(), now = Date.now();
+            if (code === lastCode && now - lastTime < 2000) return;
+            lastCode = code; lastTime = now;
+            _onCode(code);
           }
-          if (status) status.textContent = `Detectado: ${code}`;
-          // Beep
-          this._beepStock();
-          showToast(`Código escaneado: ${code}`, 'success', 2000);
-          this.stopCamara();
-        }
-      } catch (e) { /* NotFoundException = sin código en frame */ }
-    }, 250);
+        } catch(e) {}
+      }, 150);
+    }
   },
 
   async toggleTorch() {
@@ -1187,6 +1409,15 @@ const Stock = {
   },
 
   stopCamara() {
+    // Parar html5-qrcode si está activo
+    if (this._h5qStockInstance) {
+      this._h5qStockInstance.stop().catch(() => {});
+      this._h5qStockInstance = null;
+      const scanDiv = document.getElementById('h5q-stock-region');
+      if (scanDiv) scanDiv.remove();
+      const video = document.getElementById('stock-camera-video');
+      if (video) video.style.display = '';
+    }
     if (this._stockVideoTrack && this._stockTorchOn) {
       this._stockVideoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
     }
