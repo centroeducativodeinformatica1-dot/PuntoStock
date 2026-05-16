@@ -835,6 +835,7 @@ const Admin = {
               <tr>
                 <th>Negocio / Owner</th>
                 <th>Contacto</th>
+                <th>Rubro</th>
                 <th>Plan solicitado</th>
                 <th>Negocios</th>
                 <th>Monto</th>
@@ -866,6 +867,17 @@ const Admin = {
             <td>
               <div style="font-size:12px;">${n.email || '—'}</div>
               <div style="font-size:11px; color:var(--text-muted);">${n.phone || ''}</div>
+            </td>
+            <td>
+              <select onchange="Admin.cambiarRubro('${n.id}', this.value)"
+                style="padding:4px 8px; font-size:12px; max-width:130px; border-radius:6px;">
+                <option value="">— Sin definir —</option>
+                ${[
+                  ['kiosco','🏪 Kiosco'],['ropa','👗 Ropa'],['comida','🍔 Comida'],
+                  ['verduleria','🥦 Verdulería'],['farmacia','💊 Farmacia'],
+                  ['electronica','📱 Electrónica'],['ferreteria','🔧 Ferretería'],['otro','🏢 Otro']
+                ].map(([v,l]) => `<option value="${v}" ${n.tipoNegocio===v?'selected':''}>${l}</option>`).join('')}
+              </select>
             </td>
             <td>
               <span class="badge ${Admin.planBadgeClass(n.planSolicitado)}" style="font-size:10px;">
@@ -981,6 +993,15 @@ const Admin = {
     try {
       await db.collection('businesses').doc(id).update({ active });
       showToast(`${nombre}: ${active ? 'Activado' : 'Desactivado'}`, active ? 'success' : 'warning');
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  },
+
+  async cambiarRubro(id, tipoNegocio) {
+    try {
+      await db.collection('businesses').doc(id).update({ tipoNegocio });
+      const label = { kiosco:'Kiosco', ropa:'Ropa', comida:'Comida', verduleria:'Verdulería',
+                      farmacia:'Farmacia', electronica:'Electrónica', ferreteria:'Ferretería', otro:'Otro' }[tipoNegocio] || 'Sin definir';
+      showToast(`Rubro actualizado: ${label}`, 'success');
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   },
 
@@ -1367,6 +1388,27 @@ const Config = {
             <label>Dirección</label>
             <input type="text" id="cfg-dir" value="${biz.direccion || ''}" placeholder="Dirección del negocio">
           </div>
+          <div class="form-group">
+            <label>Tipo de negocio / Rubro</label>
+            <select id="cfg-rubro" style="width:100%; padding:10px 12px; background:var(--bg-card);
+              border:1px solid var(--border); border-radius:var(--radius-md);
+              color:var(--text-primary); font-family:var(--font); font-size:13px;">
+              <option value="">— Sin definir —</option>
+              ${[
+                ['kiosco','🏪 Kiosco / Almacén'],
+                ['ropa','👗 Indumentaria / Ropa'],
+                ['comida','🍔 Gastronomía / Comida'],
+                ['verduleria','🥦 Verdulería / Frutería'],
+                ['farmacia','💊 Farmacia / Dietética'],
+                ['electronica','📱 Electrónica / Tecnología'],
+                ['ferreteria','🔧 Ferretería / Materiales'],
+                ['otro','🏢 Otro'],
+              ].map(([v,l]) => `<option value="${v}" ${biz.tipoNegocio===v?'selected':''}>${l}</option>`).join('')}
+            </select>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:5px;">
+              Define las unidades disponibles al cargar productos en el stock.
+            </div>
+          </div>
           <button class="btn btn-primary" style="width:auto;" onclick="Config.guardar()">
             Guardar cambios
           </button>
@@ -1405,15 +1447,16 @@ const Config = {
     const email  = document.getElementById('cfg-email').value.trim();
     const tel    = document.getElementById('cfg-tel').value.trim();
     const dir    = document.getElementById('cfg-dir').value.trim();
+    const rubro  = document.getElementById('cfg-rubro').value;
 
     if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
 
     try {
       await db.collection('businesses').doc(PS.businessId).update({
-        name: nombre, email, phone: tel, direccion: dir,
+        name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-      PS.businessData = { ...PS.businessData, name: nombre, email, phone: tel, direccion: dir };
+      PS.businessData = { ...PS.businessData, name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro };
       PS.renderSidebar();
       showToast('Configuración guardada', 'success');
     } catch (e) {

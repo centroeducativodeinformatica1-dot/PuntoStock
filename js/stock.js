@@ -173,7 +173,7 @@ const Stock = {
           <td>
             ${p.unidad === 'kg' || p.unidad === 'g'
               ? '<span class="badge badge-blue" style="font-size:10px;">Por peso / kg</span>'
-              : `<span class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</span>`
+              : `<span class="td-mono font-bold ${stockClass}" style="font-size:15px;">${stock}</span>${p.unidadStock && p.unidadStock !== 'unidad' ? `<span style="font-size:10px; color:var(--text-muted); margin-left:3px;">${p.unidadStock}</span>` : ''}`
             }
           </td>
           <td>
@@ -245,16 +245,29 @@ const Stock = {
     const tipo    = PS.businessData?.tipoNegocio || 'otro';
 
     // Configuración por tipo de negocio
+    // unidades: primera opción = default. 'balanza' activa el selector Unidad/Peso.
     const cfg = {
-      kiosco:     { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false },
-      ropa:       { balanza: false, vencimiento: false, envio: true,  talle: true,  color: true  },
-      comida:     { balanza: true,  vencimiento: true,  envio: true,  talle: false, color: false },
-      verduleria: { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false },
-      farmacia:   { balanza: false, vencimiento: true,  envio: false, talle: false, color: false },
-      electronica:{ balanza: false, vencimiento: false, envio: true,  talle: false, color: false },
-      ferreteria: { balanza: false, vencimiento: false, envio: false, talle: false, color: false },
-      otro:       { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false },
-    }[tipo] || { balanza: true, vencimiento: true, envio: false, talle: false, color: false };
+      kiosco:     { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false,
+                    unidades: [{ v:'unidad', l:'Unidad' }, { v:'g', l:'Gramos (g)' }, { v:'kg', l:'Kilogramos (kg)' }, { v:'docena', l:'Docena' }] },
+      ropa:       { balanza: false, vencimiento: false, envio: true,  talle: true,  color: true,
+                    unidades: [{ v:'unidad', l:'Unidad' }, { v:'par', l:'Par' }, { v:'pack', l:'Pack' }] },
+      comida:     { balanza: true,  vencimiento: true,  envio: true,  talle: false, color: false,
+                    unidades: [{ v:'unidad', l:'Unidad' }, { v:'porcion', l:'Porción' }, { v:'g', l:'Gramos (g)' }, { v:'kg', l:'Kilogramos (kg)' }, { v:'litro', l:'Litro (l)' }] },
+      verduleria: { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false,
+                    unidades: [{ v:'kg', l:'Kilogramos (kg)' }, { v:'g', l:'Gramos (g)' }, { v:'unidad', l:'Unidad' }, { v:'atado', l:'Atado' }, { v:'bolsa', l:'Bolsa' }] },
+      farmacia:   { balanza: false, vencimiento: true,  envio: false, talle: false, color: false,
+                    unidades: [{ v:'comprimido', l:'Comprimidos' }, { v:'unidad', l:'Unidad' }, { v:'ml', l:'Mililitros (ml)' }, { v:'g', l:'Gramos (g)' }, { v:'caja', l:'Caja' }, { v:'blister', l:'Blíster' }] },
+      electronica:{ balanza: false, vencimiento: false, envio: true,  talle: false, color: false,
+                    unidades: [{ v:'unidad', l:'Unidad' }, { v:'pack', l:'Pack' }, { v:'kit', l:'Kit' }] },
+      ferreteria: { balanza: false, vencimiento: false, envio: false, talle: false, color: false,
+                    unidades: [{ v:'unidad', l:'Unidad' }, { v:'m', l:'Metros (m)' }, { v:'m2', l:'Metros² (m²)' }, { v:'kg', l:'Kilogramos (kg)' }, { v:'litro', l:'Litro (l)' }, { v:'caja', l:'Caja' }, { v:'rollo', l:'Rollo' }] },
+      otro:       { balanza: true,  vencimiento: true,  envio: false, talle: false, color: false,
+                    unidades: [{ v:'unidad', l:'Unidad' }, { v:'kg', l:'Kilogramos (kg)' }, { v:'g', l:'Gramos (g)' }, { v:'litro', l:'Litro (l)' }, { v:'caja', l:'Caja' }, { v:'pack', l:'Pack' }] },
+    }[tipo] || { balanza: true, vencimiento: true, envio: false, talle: false, color: false,
+                 unidades: [{ v:'unidad', l:'Unidad' }, { v:'kg', l:'Kilogramos (kg)' }, { v:'g', l:'Gramos (g)' }] };
+
+    // Unidad actual del producto (para edición)
+    const unidadActual = prod?.unidadStock || prod?.unidad || cfg.unidades[0].v;
 
     openModal(`
       <div class="modal-header">
@@ -303,7 +316,7 @@ const Stock = {
       </div>
       ` : ''}
 
-      <input type="hidden" id="prod-unidad" value="${prod?.unidad || 'unidad'}">
+      <input type="hidden" id="prod-unidad" value="${prod?.unidad || (esPeso ? 'kg' : 'unidad')}">
 
       <div class="grid-2">
         <div class="form-group" style="grid-column:1/-1;">
@@ -398,7 +411,27 @@ const Stock = {
         <!-- Stock: ocultar para productos por peso -->
         <div class="form-group" id="stock-field" style="display:${esPeso ? 'none' : 'block'};">
           <label>Stock actual</label>
-          <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0">
+          <div style="display:flex; gap:8px; align-items:stretch;">
+            <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0" style="flex:1;">
+            ${cfg.unidades.length > 1 ? `
+            <select id="prod-unidad-stock"
+              onchange="Stock.onUnidadStockChange(this.value)"
+              style="flex:0 0 auto; min-width:130px; padding:8px 10px;
+                     background:var(--bg-card); border:1px solid var(--border);
+                     border-radius:var(--radius-md); color:var(--text-primary);
+                     font-family:var(--font); font-size:13px; cursor:pointer;">
+              ${cfg.unidades.map(u => `<option value="${u.v}" ${unidadActual === u.v ? 'selected' : ''}>${u.l}</option>`).join('')}
+            </select>
+            ` : `
+            <div style="display:flex; align-items:center; padding:0 12px;
+                        background:var(--bg-card); border:1px solid var(--border);
+                        border-radius:var(--radius-md); font-size:13px;
+                        color:var(--text-secondary); font-weight:600; white-space:nowrap;">
+              ${cfg.unidades[0].l}
+            </div>
+            `}
+          </div>
+          <input type="hidden" id="prod-unidad-stock-val" value="${unidadActual}">
         </div>
 
         <div class="form-group">
@@ -606,7 +639,17 @@ const Stock = {
     if (labelPrecio) labelPrecio.textContent  = esPeso ? 'Precio de venta por kg *' : 'Precio de venta *';
   },
 
-  togglePromo(activa) {
+  // Cuando cambia la unidad de stock desde el selector
+  onUnidadStockChange(val) {
+    const hidden = document.getElementById('prod-unidad-stock-val');
+    if (hidden) hidden.value = val;
+    // Si la unidad es kg o g, también actualizar prod-unidad (para lógica de balanza)
+    const esPeso = val === 'kg' || val === 'g';
+    const unidadInput = document.getElementById('prod-unidad');
+    if (unidadInput) unidadInput.value = esPeso ? val : 'unidad';
+  },
+
+
     document.getElementById('promo-opciones').style.display = activa ? 'block' : 'none';
     if (!activa) {
       document.getElementById('promo-tipo-seleccionado').value = '';
@@ -643,6 +686,7 @@ const Stock = {
     const barcode     = document.getElementById('prod-barcode').value.trim();
     const cat         = document.getElementById('prod-cat').value.trim();
     const unidad      = document.getElementById('prod-unidad').value;
+    const unidadStock = document.getElementById('prod-unidad-stock-val')?.value || unidad;
     const desc        = document.getElementById('prod-desc').value.trim();
     const activo      = document.getElementById('prod-activo').checked;
     const vencimiento = document.getElementById('prod-vencimiento')?.value || null;
@@ -669,7 +713,7 @@ const Stock = {
     if (isNaN(precio) || precio < 0) { showToast('Precio inválido', 'error'); return; }
 
     const data = {
-      nombre, precio, stock, activo, unidad,
+      nombre, precio, stock, activo, unidad, unidadStock,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (costo)       data.precioCosto  = costo;
