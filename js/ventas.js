@@ -208,28 +208,7 @@ const Ventas = {
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
-              ${[
-                { id:'Efectivo',             label:'Efectivo',        color:'#2ECC71', svgStroke:true,  icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
-                { id:'Tarjeta',              label:'Tarjeta',         color:'#3B82F6', svgStroke:true,  icon:'<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' },
-                { id:'Transferencia',        label:'Transferencia',   color:'#8B5CF6', svgStroke:true,  icon:'<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
-                { id:'Cuenta corriente',     label:'Cta. corriente', color:'#F59E0B', svgStroke:true,  icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
-                { id:'PedidosYa Efectivo',   label:'PY Efectivo',    color:'#FF3C00', svgStroke:false, icon:'py' },
-                { id:'PedidosYa Digital',    label:'PY Digital',     color:'#CC2200', svgStroke:false, icon:'py' },
-              ].map(m => {
-                const pyLogo = `<svg width="16" height="16" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect width="100" height="100" rx="22" fill="${m.id==='PedidosYa Efectivo'?'#FF3C00':'#CC2200'}"/>
-                  <path d="M28 20 C28 20 28 48 28 55 C28 65 36 72 46 72 C52 72 57 69 60 64 L60 80 L72 80 L72 20 L60 20 L60 36 C57 31 52 28 46 28 C36 28 28 34 28 44 L28 20 Z M40 50 C40 44 42 38 50 38 C58 38 60 44 60 50 C60 56 58 62 50 62 C42 62 40 56 40 50 Z" fill="white"/>
-                </svg>`;
-                return \`
-                <label data-pago="\${m.id}" style="display:flex; align-items:center; gap:7px; cursor:pointer;
-                              padding:9px 8px; border:2px solid var(--border); border-radius:8px;
-                              font-size:12px; font-weight:500; transition:all 0.15s;"
-                       onclick="Ventas.selectPago('\${m.id}')">
-                  <input type="radio" name="pago" value="\${m.id}" style="display:none;">
-                  \${m.icon === 'py' ? pyLogo : \`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="\${m.color}" stroke-width="2" style="flex-shrink:0; opacity:0.85;">\${m.icon}</svg>\`}
-                  \${m.label}
-                </label>\`;
-              }).join('')}
+              ${Ventas._renderMetodosPago()}
             </div>
 
             <div id="efectivo-section" style="display:none; margin-bottom:10px;">
@@ -1244,6 +1223,43 @@ const Ventas = {
     const btn = document.getElementById('cobrar-btn');
     if (btn && this.cart.length > 0) btn.textContent = `Cobrar ${formatPrice(total)}`;
     this.calcVuelto();
+  },
+
+  _renderMetodosPago() {
+    const metodos = [
+      { id:'Efectivo',           label:'Efectivo',       color:'#2ECC71', py:false, icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+      { id:'Tarjeta',            label:'Tarjeta',        color:'#3B82F6', py:false, icon:'<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' },
+      { id:'Transferencia',      label:'Transferencia',  color:'#8B5CF6', py:false, icon:'<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
+      { id:'Cuenta corriente',   label:'Cta. corriente', color:'#F59E0B', py:false, icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
+      { id:'PedidosYa Efectivo', label:'PY Efectivo',   color:'#FF3C00', py:true,  pyBg:'#FF3C00' },
+      { id:'PedidosYa Digital',  label:'PY Digital',    color:'#CC2200', py:true,  pyBg:'#CC2200' },
+    ];
+    return metodos.map(function(m) {
+      var iconHtml;
+      if (m.py) {
+        iconHtml = '<svg width="18" height="18" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">'
+          + '<rect width="100" height="100" rx="22" fill="' + m.pyBg + '"/>'
+          + '<path d="M28 20 C28 20 28 48 28 55 C28 65 36 72 46 72 C52 72 57 69 60 64'
+          + ' L60 80 L72 80 L72 20 L60 20 L60 36 C57 31 52 28 46 28'
+          + ' C36 28 28 34 28 44 L28 20 Z'
+          + ' M40 50 C40 44 42 38 50 38 C58 38 60 44 60 50'
+          + ' C60 56 58 62 50 62 C42 62 40 56 40 50 Z" fill="white"/>'
+          + '</svg>';
+      } else {
+        iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"'
+          + ' stroke="' + m.color + '" stroke-width="2" style="flex-shrink:0; opacity:0.9;">'
+          + m.icon + '</svg>';
+      }
+      return '<label data-pago="' + m.id + '"'
+        + ' style="display:flex; align-items:center; gap:7px; cursor:pointer;'
+        + ' padding:9px 8px; border:2px solid var(--border); border-radius:8px;'
+        + ' font-size:12px; font-weight:500; transition:all 0.15s; color:var(--text-primary);"'
+        + ' onclick="Ventas.selectPago(' + "'" + m.id + "'" + ')">'
+        + '<input type="radio" name="pago" value="' + m.id + '" style="display:none;">'
+        + iconHtml
+        + m.label
+        + '</label>';
+    }).join('');
   },
 
   selectPago(metodo) {
