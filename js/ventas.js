@@ -1225,6 +1225,13 @@ const Ventas = {
     this.calcVuelto();
   },
 
+  _pyLogo(bg) {
+    return '<svg width="22" height="22" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">'
+      + '<rect width="512" height="512" rx="100" fill="' + bg + '"/>'
+      + '<path fill="white" d="M154 104h103c59 0 102 39 102 92 0 53-43 92-102 92h-54v58h-49V241h103c24 0 41-16 41-37s-17-37-41-37H154v-63z"/>'
+      + '</svg>';
+  },
+
   _renderMetodosPago() {
     const metodos = [
       { id:'Efectivo',           label:'Efectivo',       color:'#2ECC71', py:false, icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
@@ -1232,32 +1239,22 @@ const Ventas = {
       { id:'Transferencia',      label:'Transferencia',  color:'#8B5CF6', py:false, icon:'<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
       { id:'Cuenta corriente',   label:'Cta. corriente', color:'#F59E0B', py:false, icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
       { id:'PedidosYa Efectivo', label:'PY Efectivo',   color:'#FF3C00', py:true,  pyBg:'#FF3C00' },
-      { id:'PedidosYa Digital',  label:'PY Digital',    color:'#CC2200', py:true,  pyBg:'#CC2200' },
+      { id:'PedidosYa Digital',  label:'PY Tarjeta/Transf.', color:'#E8001A', py:true,  pyBg:'#E8001A' },
     ];
+    var self = this;
     return metodos.map(function(m) {
-      var iconHtml;
-      if (m.py) {
-        iconHtml = '<svg width="18" height="18" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">'
-          + '<rect width="100" height="100" rx="22" fill="' + m.pyBg + '"/>'
-          + '<path d="M28 20 C28 20 28 48 28 55 C28 65 36 72 46 72 C52 72 57 69 60 64'
-          + ' L60 80 L72 80 L72 20 L60 20 L60 36 C57 31 52 28 46 28'
-          + ' C36 28 28 34 28 44 L28 20 Z'
-          + ' M40 50 C40 44 42 38 50 38 C58 38 60 44 60 50'
-          + ' C60 56 58 62 50 62 C42 62 40 56 40 50 Z" fill="white"/>'
-          + '</svg>';
-      } else {
-        iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"'
+      var iconHtml = m.py
+        ? self._pyLogo(m.pyBg)
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"'
           + ' stroke="' + m.color + '" stroke-width="2" style="flex-shrink:0; opacity:0.9;">'
           + m.icon + '</svg>';
-      }
       return '<label data-pago="' + m.id + '"'
         + ' style="display:flex; align-items:center; gap:7px; cursor:pointer;'
         + ' padding:9px 8px; border:2px solid var(--border); border-radius:8px;'
         + ' font-size:12px; font-weight:500; transition:all 0.15s; color:var(--text-primary);"'
         + ' onclick="Ventas.selectPago(' + "'" + m.id + "'" + ')">'
         + '<input type="radio" name="pago" value="' + m.id + '" style="display:none;">'
-        + iconHtml
-        + m.label
+        + iconHtml + m.label
         + '</label>';
     }).join('');
   },
@@ -1274,7 +1271,7 @@ const Ventas = {
       'Transferencia':      '#8B5CF6',
       'Cuenta corriente':   '#F59E0B',
       'PedidosYa Efectivo': '#FF3C00',
-      'PedidosYa Digital':  '#CC2200',
+      'PedidosYa Digital':  '#E8001A',
     };
     const color = colors[metodo] || 'var(--green-primary)';
 
