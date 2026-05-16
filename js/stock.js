@@ -1192,9 +1192,9 @@ const Stock = {
       // Autofocus continuo
       await this._aplicarFocoStock(track);
 
-      const caps = track.getCapabilities?.() || {};
+      // Mostrar linterna siempre — detectamos soporte al usarla
       const torchBtn = document.getElementById('stock-torch-btn');
-      if (torchBtn) torchBtn.style.display = caps.torch ? 'flex' : 'none';
+      if (torchBtn) torchBtn.style.display = 'flex';
 
       // Cargar lib y escanear
       if (status) status.textContent = 'Iniciando...';
@@ -1390,21 +1390,30 @@ const Stock = {
   },
 
   async toggleTorch() {
-    if (!this._stockVideoTrack) return;
+    const track = this._stockVideoTrack
+      || this._stockStream?.getVideoTracks()[0]
+      || null;
+
+    if (!track) { showToast('Cámara no activa', 'warning'); return; }
+
     const torchBtn = document.getElementById('stock-torch-btn');
-    this._stockTorchOn = !this._stockTorchOn;
+
     try {
-      await this._stockVideoTrack.applyConstraints({
-        advanced: [{ torch: this._stockTorchOn }]
-      });
+      this._stockTorchOn = !this._stockTorchOn;
+      await track.applyConstraints({ advanced: [{ torch: this._stockTorchOn }] });
+
       if (torchBtn) {
-        torchBtn.style.background   = this._stockTorchOn ? 'rgba(126,211,33,0.3)' : 'rgba(0,0,0,0.65)';
-        torchBtn.style.borderColor  = this._stockTorchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.25)';
+        torchBtn.style.background  = this._stockTorchOn ? 'rgba(126,211,33,0.3)' : 'rgba(0,0,0,0.65)';
+        torchBtn.style.borderColor = this._stockTorchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.25)';
         torchBtn.title = this._stockTorchOn ? 'Apagar linterna' : 'Encender linterna';
       }
     } catch (e) {
-      showToast('Este dispositivo no soporta linterna.', 'warning');
       this._stockTorchOn = false;
+      if (torchBtn) {
+        torchBtn.style.background  = 'rgba(0,0,0,0.65)';
+        torchBtn.style.borderColor = 'rgba(255,255,255,0.25)';
+      }
+      showToast('Este dispositivo no soporta linterna desde el navegador.', 'warning');
     }
   },
 
