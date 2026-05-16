@@ -117,7 +117,9 @@ const Ventas = {
                        cursor:pointer; display:none; flex-direction:column;
                        align-items:center; justify-content:center; gap:2px;
                        transition:all 0.2s; font-size:20px; line-height:1;">
-                💡
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18h6M10 22h4M12 2a7 7 0 0 1 7 7c0 2.6-1.4 4.9-3.5 6.2V17a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-1.8A7 7 0 0 1 12 2z"/>
+                </svg>
                 <span id="torch-label" style="font-size:9px; font-weight:800; letter-spacing:0.5px;">OFF</span>
               </button>
               <!-- Cerrar cámara -->
@@ -207,20 +209,27 @@ const Ventas = {
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
               ${[
-                { id:'Efectivo',          label:'Efectivo',          icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
-                { id:'Tarjeta',           label:'Tarjeta',           icon:'<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' },
-                { id:'Transferencia',     label:'Transferencia',     icon:'<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
-                { id:'Cuenta corriente',  label:'Cta. corriente',    icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
-              ].map(m => `
-                <label style="display:flex; align-items:center; gap:7px; cursor:pointer;
-                              padding:9px 8px; border:1px solid var(--border); border-radius:8px;
+                { id:'Efectivo',             label:'Efectivo',        color:'#2ECC71', svgStroke:true,  icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+                { id:'Tarjeta',              label:'Tarjeta',         color:'#3B82F6', svgStroke:true,  icon:'<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' },
+                { id:'Transferencia',        label:'Transferencia',   color:'#8B5CF6', svgStroke:true,  icon:'<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>' },
+                { id:'Cuenta corriente',     label:'Cta. corriente', color:'#F59E0B', svgStroke:true,  icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
+                { id:'PedidosYa Efectivo',   label:'PY Efectivo',    color:'#FF3C00', svgStroke:false, icon:'py' },
+                { id:'PedidosYa Digital',    label:'PY Digital',     color:'#CC2200', svgStroke:false, icon:'py' },
+              ].map(m => {
+                const pyLogo = `<svg width="16" height="16" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="100" height="100" rx="22" fill="${m.id==='PedidosYa Efectivo'?'#FF3C00':'#CC2200'}"/>
+                  <path d="M28 20 C28 20 28 48 28 55 C28 65 36 72 46 72 C52 72 57 69 60 64 L60 80 L72 80 L72 20 L60 20 L60 36 C57 31 52 28 46 28 C36 28 28 34 28 44 L28 20 Z M40 50 C40 44 42 38 50 38 C58 38 60 44 60 50 C60 56 58 62 50 62 C42 62 40 56 40 50 Z" fill="white"/>
+                </svg>`;
+                return \`
+                <label data-pago="\${m.id}" style="display:flex; align-items:center; gap:7px; cursor:pointer;
+                              padding:9px 8px; border:2px solid var(--border); border-radius:8px;
                               font-size:12px; font-weight:500; transition:all 0.15s;"
-                       onclick="Ventas.selectPago('${m.id}')">
-                  <input type="radio" name="pago" value="${m.id}" style="accent-color:var(--green-primary); display:none;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; opacity:0.7;">${m.icon}</svg>
-                  ${m.label}
-                </label>
-              `).join('')}
+                       onclick="Ventas.selectPago('\${m.id}')">
+                  <input type="radio" name="pago" value="\${m.id}" style="display:none;">
+                  \${m.icon === 'py' ? pyLogo : \`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="\${m.color}" stroke-width="2" style="flex-shrink:0; opacity:0.85;">\${m.icon}</svg>\`}
+                  \${m.label}
+                </label>\`;
+              }).join('')}
             </div>
 
             <div id="efectivo-section" style="display:none; margin-bottom:10px;">
@@ -628,9 +637,9 @@ const Ventas = {
       // Forzar autofocus continuo
       await this._aplicarFoco(track);
 
-      const caps = track.getCapabilities?.() || {};
+      // Mostrar linterna siempre — detectamos soporte al usarla
       const torchBtn = document.getElementById('btn-torch');
-      if (torchBtn) torchBtn.style.display = caps.torch ? 'flex' : 'none';
+      if (torchBtn) torchBtn.style.display = 'flex';
 
       if (status) status.textContent = 'Apuntá el código al recuadro';
       this.startCameraScan(video);
@@ -683,30 +692,46 @@ const Ventas = {
 
   // Encender/apagar linterna
   async toggleTorch() {
-    if (!this._videoTrack) return;
-    const torchBtn  = document.getElementById('btn-torch');
-    const torchLabel= document.getElementById('torch-label');
+    // Buscar el track activo — puede haber cambiado si h5q tomó control
+    const track = this._videoTrack
+      || this.cameraStream?.getVideoTracks()[0]
+      || null;
+
+    if (!track) {
+      showToast('Cámara no activa', 'warning');
+      return;
+    }
+
+    const torchBtn   = document.getElementById('btn-torch');
+    const torchLabel = document.getElementById('torch-label');
+
+    // Verificar soporte AHORA (después de que el track esté activo)
+    const caps = track.getCapabilities?.() || {};
+    if (!caps.torch) {
+      // Algunos dispositivos no reportan torch en getCapabilities pero sí lo soportan
+      // Intentamos igual
+    }
 
     try {
       this.torchOn = !this.torchOn;
-      await this._videoTrack.applyConstraints({
-        advanced: [{ torch: this.torchOn }]
-      });
+      await track.applyConstraints({ advanced: [{ torch: this.torchOn }] });
 
       if (torchBtn) {
-        torchBtn.style.background  = this.torchOn
-          ? 'rgba(126,211,33,0.85)'
-          : 'rgba(0,0,0,0.75)';
-        torchBtn.style.borderColor = this.torchOn
-          ? 'var(--green-primary)'
-          : 'rgba(255,255,255,0.35)';
-        torchBtn.style.color = this.torchOn ? '#0D1117' : 'white';
+        torchBtn.style.background  = this.torchOn ? 'rgba(126,211,33,0.85)' : 'rgba(0,0,0,0.75)';
+        torchBtn.style.borderColor = this.torchOn ? 'var(--green-primary)' : 'rgba(255,255,255,0.35)';
+        torchBtn.style.color       = this.torchOn ? '#0D1117' : 'white';
       }
       if (torchLabel) torchLabel.textContent = this.torchOn ? 'ON' : 'OFF';
 
     } catch (e) {
-      showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
       this.torchOn = false;
+      if (torchBtn) {
+        torchBtn.style.background  = 'rgba(0,0,0,0.75)';
+        torchBtn.style.borderColor = 'rgba(255,255,255,0.35)';
+        torchBtn.style.color       = 'white';
+      }
+      if (torchLabel) torchLabel.textContent = 'OFF';
+      showToast('Este dispositivo no soporta linterna desde el navegador', 'warning');
     }
   },
 
@@ -967,12 +992,60 @@ const Ventas = {
         this.abrirBalanza(prod.id);
       } else {
         this.addToCart(prod.id);
-        showToast(`${prod.nombre} agregado`, 'success', 1500);
+        // Alerta de promo si el producto tiene una activa
+        if (prod.promo?.activa && prod.promo?.tipo) {
+          this._mostrarAlertaPromo(prod);
+        } else {
+          showToast(`${prod.nombre} agregado`, 'success', 1500);
+        }
       }
     } else {
       // Código no encontrado → ofrecer registrar el producto
       this.mostrarProductoNoEncontrado(code);
     }
+  },
+
+  _mostrarAlertaPromo(prod) {
+    const promoLabels = {
+      '2x1':    { titulo: '¡2x1!',           desc: 'Llevás 2 unidades y pagás 1.',         color: '#7ED321', bg: 'rgba(126,211,33,0.1)',  border: 'rgba(126,211,33,0.35)' },
+      '3x1':    { titulo: '¡3x1!',           desc: 'Llevás 3 unidades y pagás 1.',         color: '#7ED321', bg: 'rgba(126,211,33,0.1)',  border: 'rgba(126,211,33,0.35)' },
+      '4x1':    { titulo: '¡4x1!',           desc: 'Llevás 4 unidades y pagás 1.',         color: '#7ED321', bg: 'rgba(126,211,33,0.1)',  border: 'rgba(126,211,33,0.35)' },
+      '50off2': { titulo: '¡50% en la 2da!', desc: 'La segunda unidad tiene 50% de dto.', color: '#F0A500', bg: 'rgba(240,165,0,0.1)',   border: 'rgba(240,165,0,0.35)'  },
+      '30off':  { titulo: '¡30% OFF!',       desc: '30% de descuento en este producto.',   color: '#F0A500', bg: 'rgba(240,165,0,0.1)',   border: 'rgba(240,165,0,0.35)'  },
+      'custom': { titulo: '¡Promoción!',     desc: prod.promo?.texto || 'Tiene promo especial.', color: '#7ED321', bg: 'rgba(126,211,33,0.1)', border: 'rgba(126,211,33,0.35)' },
+    };
+    const info = promoLabels[prod.promo.tipo] || promoLabels['custom'];
+
+    openModal(`
+      <div style="text-align:center; padding:8px 0 16px;">
+        <!-- Icono promo -->
+        <div style="width:64px; height:64px; background:${info.bg}; border:2px solid ${info.border};
+                    border-radius:50%; display:flex; align-items:center; justify-content:center;
+                    margin:0 auto 16px;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="${info.color}" stroke-width="2">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          </svg>
+        </div>
+
+        <div style="font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+                    color:${info.color}; margin-bottom:6px;">Promoción activa</div>
+        <h3 style="font-size:26px; font-weight:900; margin-bottom:6px; color:var(--text-primary);">
+          ${info.titulo}
+        </h3>
+        <div style="font-size:14px; color:var(--text-secondary); margin-bottom:4px;">
+          <strong style="color:var(--text-primary);">${prod.nombre}</strong>
+        </div>
+        <div style="font-size:13px; color:var(--text-secondary); line-height:1.5; margin-bottom:24px;">
+          ${info.desc}
+        </div>
+
+        <button onclick="closeModal()" class="btn btn-primary w-full"
+          style="font-size:15px; padding:14px; font-weight:700;">
+          Entendido
+        </button>
+      </div>
+    `);
   },
 
   mostrarProductoNoEncontrado(code) {
@@ -1174,8 +1247,40 @@ const Ventas = {
   },
 
   selectPago(metodo) {
+    // Mostrar/ocultar campo de vuelto
     const s = document.getElementById('efectivo-section');
     if (s) s.style.display = metodo === 'Efectivo' ? 'block' : 'none';
+
+    // Colores por método
+    const colors = {
+      'Efectivo':           '#2ECC71',
+      'Tarjeta':            '#3B82F6',
+      'Transferencia':      '#8B5CF6',
+      'Cuenta corriente':   '#F59E0B',
+      'PedidosYa Efectivo': '#FF3C00',
+      'PedidosYa Digital':  '#CC2200',
+    };
+    const color = colors[metodo] || 'var(--green-primary)';
+
+    // Resetear todos los labels
+    document.querySelectorAll('[data-pago]').forEach(label => {
+      label.style.border      = '2px solid var(--border)';
+      label.style.background  = 'transparent';
+      label.style.color       = 'var(--text-primary)';
+    });
+
+    // Marcar el seleccionado
+    const sel = document.querySelector(`[data-pago="${metodo}"]`);
+    if (sel) {
+      sel.style.border     = `2px solid ${color}`;
+      sel.style.background = `${color}18`;
+      sel.style.color      = color;
+      sel.querySelector('input[type=radio]').checked = true;
+    }
+
+    // Habilitar cobrar
+    const btn = document.getElementById('cobrar-btn');
+    if (btn) btn.disabled = this.cart.length === 0;
   },
 
   calcVuelto() {
