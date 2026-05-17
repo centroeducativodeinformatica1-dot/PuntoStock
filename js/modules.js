@@ -2384,27 +2384,20 @@ const Config = {
             </div>
           </div>
 
-          <!-- Módulo Empleadas -->
+          <!-- Módulo Empleados -->
           <div class="form-group">
             <label>Módulos opcionales</label>
             <label style="display:flex; align-items:center; gap:12px; padding:12px 14px;
               background:var(--bg-secondary); border:1px solid var(--border);
               border-radius:var(--radius-md); cursor:pointer;">
-              <div style="position:relative; width:44px; height:24px; flex-shrink:0;">
-                <input type="checkbox" id="cfg-empleadas" ${biz.modulo_empleadas ? 'checked' : ''}
-                  style="opacity:0;position:absolute;width:100%;height:100%;cursor:pointer;z-index:1;">
-                <div id="cfg-empleadas-track" style="width:44px;height:24px;border-radius:12px;
-                  background:${biz.modulo_empleadas ? 'var(--green-primary)' : 'var(--bg-card)'};
-                  border:1px solid var(--border);transition:background 0.2s;position:absolute;top:0;left:0;"></div>
-                <div id="cfg-empleadas-thumb" style="width:18px;height:18px;border-radius:50%;
-                  background:white;position:absolute;top:3px;
-                  left:${biz.modulo_empleadas ? '23px' : '3px'};
-                  transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
-              </div>
+              <label class="toggle" style="margin:0; flex-shrink:0;">
+                <input type="checkbox" id="cfg-empleadas" ${biz.modulo_empleadas ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
               <div>
-                <div style="font-weight:600; font-size:13px;">Módulo Empleadas</div>
+                <div style="font-weight:600; font-size:13px;">Módulo Empleados</div>
                 <div style="font-size:11px; color:var(--text-muted);">
-                  Habilita consumos de empleadas y el método de pago "Consumo empleado" en ventas
+                  Habilita consumos de empleados y el método de pago "Consumo empleado" en ventas
                 </div>
               </div>
             </label>
