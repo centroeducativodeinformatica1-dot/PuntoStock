@@ -371,342 +371,330 @@ const Stock = {
 
     openModal(`
       <div class="modal-header">
-        <h3 class="modal-title">${prod ? 'Editar producto' : '+ Nuevo producto'}</h3>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-
-      <!-- Selector balanza — solo rubros que lo necesitan -->
-      ${cfg.balanza ? `
-      <div class="form-group" style="margin-bottom:20px;">
-        <label>Tipo de producto</label>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
-          <label id="tipo-unidad-label" onclick="Stock.setTipo('unidad')"
-            style="display:flex; align-items:center; gap:10px; padding:12px 14px;
-                   border:2px solid ${!esPeso ? 'var(--green-primary)' : 'var(--border)'};
-                   border-radius:var(--radius-md); cursor:pointer; transition:all 0.2s;
-                   background:${!esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
-            <input type="radio" name="prod-tipo" value="unidad" ${!esPeso ? 'checked' : ''}
-              style="accent-color:var(--green-primary); width:16px; height:16px;">
-            <div>
-              <div style="font-weight:700; font-size:13px;">Por unidad</div>
-              <div style="font-size:11px; color:var(--text-secondary);">Precio fijo por unidad</div>
-            </div>
-          </label>
-          <label id="tipo-peso-label" onclick="Stock.setTipo('kg')"
-            style="display:flex; align-items:center; gap:10px; padding:12px 14px;
-                   border:2px solid ${esPeso ? 'var(--green-primary)' : 'var(--border)'};
-                   border-radius:var(--radius-md); cursor:pointer; transition:all 0.2s;
-                   background:${esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
-            <input type="radio" name="prod-tipo" value="kg" ${esPeso ? 'checked' : ''}
-              style="accent-color:var(--green-primary); width:16px; height:16px;">
-            <div>
-              <div style="font-weight:700; font-size:13px;">Por peso / balanza</div>
-              <div style="font-size:11px; color:var(--text-secondary);">Precio por kg, venta en gramos</div>
-            </div>
-          </label>
-        </div>
-        <div id="peso-aviso" style="display:${esPeso ? 'flex' : 'none'}; align-items:center; gap:8px;
-             margin-top:10px; padding:10px 12px; background:rgba(126,211,33,0.08);
-             border:1px solid var(--border-green); border-radius:var(--radius-md); font-size:12px; color:var(--green-primary);">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          Al vender se abrirá la calculadora de balanza. El precio es por kilogramo.
-        </div>
-      </div>
-      ` : ''}
-
-      <input type="hidden" id="prod-unidad" value="${prod?.unidad || (esPeso ? 'kg' : 'unidad')}">
-
-      <div class="grid-2">
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>Nombre del producto *</label>
-          <input type="text" id="prod-nombre" value="${prod?.nombre || ''}">
-        </div>
-        <div class="form-group">
-          <label>Código / SKU</label>
-          <input type="text" id="prod-codigo" value="${prod?.codigo || ''}">
-        </div>
-        <div class="form-group">
-          <label>Código de barras</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}"
-              style="flex:1;" placeholder="Escribí o escaneá">
-            <button type="button" onclick="Stock.generarYAplicar()"
-              title="Generar código propio (26122205XXXX)"
-              style="height:42px; padding:0 10px; flex-shrink:0; background:var(--green-muted);
-                     border:1px solid var(--border-green); border-radius:var(--radius-md);
-                     cursor:pointer; display:flex; align-items:center; gap:5px;
-                     color:var(--green-primary); font-size:11px; font-weight:700; transition:all 0.2s;"
-              onmouseenter="this.style.background='var(--green-primary)';this.style.color='#0D1117'"
-              onmouseleave="this.style.background='var(--green-muted)';this.style.color='var(--green-primary)'">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
-              </svg>
-              Generar
-            </button>
-            <button type="button" onclick="Stock.abrirCamaraBarcode()"
-              title="Escanear con cámara"
-              style="width:42px; height:42px; flex-shrink:0; background:var(--bg-card);
-                     border:1px solid var(--border); border-radius:var(--radius-md);
-                     cursor:pointer; display:flex; align-items:center; justify-content:center;
-                     color:var(--text-secondary); transition:all 0.2s;"
-              onmouseenter="this.style.borderColor='var(--green-primary)';this.style.color='var(--green-primary)'"
-              onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            </button>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:36px;height:36px;border-radius:10px;background:var(--green-muted);
+            border:1px solid var(--border-green);display:flex;align-items:center;justify-content:center;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2">
+              ${prod ? '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'
+                     : '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'}
+            </svg>
           </div>
-          <!-- Visor de cámara en el modal de stock -->
-          <div id="stock-camera-container" style="display:none; margin-top:8px; position:relative;
-               border-radius:var(--radius-md); overflow:hidden; border:2px solid var(--green-primary); background:#000;">
-            <video id="stock-camera-video" autoplay playsinline muted
-              style="width:100%; max-height:200px; object-fit:cover; display:block;"></video>
-            <canvas id="stock-camera-canvas" style="display:none;"></canvas>
-            <!-- Marco -->
-            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;">
-              <div style="position:relative; width:200px; height:70px;">
-                <div style="position:absolute; inset:0; box-shadow:0 0 0 9999px rgba(0,0,0,0.45); border-radius:4px;"></div>
-                <div style="position:absolute; inset:0; border:2px solid var(--green-primary); border-radius:4px;"></div>
-                <div style="position:absolute; top:-2px; left:-2px; width:16px; height:16px; border-top:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
-                <div style="position:absolute; top:-2px; right:-2px; width:16px; height:16px; border-top:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
-                <div style="position:absolute; bottom:-2px; left:-2px; width:16px; height:16px; border-bottom:3px solid var(--green-primary); border-left:3px solid var(--green-primary);"></div>
-                <div style="position:absolute; bottom:-2px; right:-2px; width:16px; height:16px; border-bottom:3px solid var(--green-primary); border-right:3px solid var(--green-primary);"></div>
+          <h3 class="modal-title">${prod ? 'Editar producto' : 'Nuevo producto'}</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:0;">
+
+        <!-- ── SECCIÓN 1: Tipo de producto (solo si balanza disponible) ── -->
+        ${cfg.balanza ? `
+        <div style="padding:16px 0 12px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+            Tipo de producto
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <label id="tipo-unidad-label" onclick="Stock.setTipo('unidad')"
+              style="display:flex;align-items:center;gap:10px;padding:12px;
+                border:2px solid ${!esPeso ? 'var(--green-primary)' : 'var(--border)'};
+                border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s;
+                background:${!esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
+              <input type="radio" name="prod-tipo" value="unidad" ${!esPeso ? 'checked' : ''}
+                style="accent-color:var(--green-primary);width:16px;height:16px;">
+              <div>
+                <div style="font-weight:700;font-size:13px;">Por unidad</div>
+                <div style="font-size:10px;color:var(--text-secondary);">Precio fijo</div>
+              </div>
+            </label>
+            <label id="tipo-peso-label" onclick="Stock.setTipo('kg')"
+              style="display:flex;align-items:center;gap:10px;padding:12px;
+                border:2px solid ${esPeso ? 'var(--green-primary)' : 'var(--border)'};
+                border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s;
+                background:${esPeso ? 'var(--green-muted)' : 'var(--bg-card)'};">
+              <input type="radio" name="prod-tipo" value="kg" ${esPeso ? 'checked' : ''}
+                style="accent-color:var(--green-primary);width:16px;height:16px;">
+              <div>
+                <div style="font-weight:700;font-size:13px;">Por peso / kg</div>
+                <div style="font-size:10px;color:var(--text-secondary);">Balanza</div>
+              </div>
+            </label>
+          </div>
+          <div id="peso-aviso" style="display:${esPeso ? 'flex' : 'none'};align-items:center;gap:8px;
+            margin-top:8px;padding:8px 12px;background:rgba(126,211,33,0.08);
+            border:1px solid var(--border-green);border-radius:var(--radius-md);font-size:11px;color:var(--green-primary);">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Al vender se abrirá la calculadora de balanza. El precio es por kg.
+          </div>
+        </div>
+        <div style="height:1px;background:var(--border);margin:0 0 16px;"></div>
+        ` : ''}
+
+        <input type="hidden" id="prod-unidad" value="${prod?.unidad || (esPeso ? 'kg' : 'unidad')}">
+
+        <!-- ── SECCIÓN 2: Información básica ── -->
+        <div style="margin-bottom:14px;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Nombre del producto *</label>
+            <input type="text" id="prod-nombre" value="${prod?.nombre || ''}" placeholder="Ej: Coca Cola 1.5L" autofocus>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group" style="margin:0;">
+              <label>Precio de venta${esPeso ? ' /kg' : ''} *</label>
+              <div style="position:relative;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:700;">$</span>
+                <input type="number" id="prod-precio" value="${prod?.precio || ''}" min="0" step="0.01" style="padding-left:24px;">
               </div>
             </div>
-            <!-- Controles -->
-            <div style="position:absolute; top:6px; right:6px; display:flex; gap:5px;">
-              <button id="stock-torch-btn" onclick="Stock.toggleTorch()" title="Linterna"
-                style="width:34px; height:34px; background:rgba(0,0,0,0.65);
-                       border:2px solid rgba(255,255,255,0.25); border-radius:8px;
-                       cursor:pointer; display:none; align-items:center; justify-content:center;
-                       font-size:16px; transition:all 0.2s;">
-                💡
+            <div class="form-group" style="margin:0;">
+              <label>Precio de costo</label>
+              <div style="position:relative;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:700;">$</span>
+                <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" min="0" step="0.01" style="padding-left:24px;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--border);margin:0 0 14px;"></div>
+
+        <!-- ── SECCIÓN 3: Código y Stock ── -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+            Código y Stock
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="form-group" style="margin:0;">
+              <label>Código / SKU</label>
+              <input type="text" id="prod-codigo" value="${prod?.codigo || ''}" placeholder="Interno">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Categoría</label>
+              <input type="text" id="prod-cat" value="${prod?.categoria || ''}" list="cats-datalist" placeholder="Ej: Bebidas">
+              <datalist id="cats-datalist">${cats.map(c => `<option value="${c}">`).join('')}</datalist>
+            </div>
+          </div>
+
+          <!-- Código de barras -->
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Código de barras</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}"
+                style="flex:1;" placeholder="Escaneá o ingresá">
+              <button type="button" onclick="Stock.generarYAplicar()"
+                title="Generar código propio 26122205XXXX"
+                style="height:40px;padding:0 12px;flex-shrink:0;background:var(--green-muted);
+                  border:1px solid var(--border-green);border-radius:var(--radius-md);
+                  cursor:pointer;display:flex;align-items:center;gap:5px;
+                  color:var(--green-primary);font-size:11px;font-weight:700;white-space:nowrap;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+                </svg>
+                Generar
               </button>
-              <button onclick="Stock.stopCamara()"
-                style="width:34px; height:34px; background:rgba(0,0,0,0.65);
-                       border:2px solid rgba(255,255,255,0.25); border-radius:8px;
-                       cursor:pointer; display:flex; align-items:center; justify-content:center;
-                       color:white; font-size:15px;">✕</button>
+              <button type="button" onclick="Stock.abrirCamaraBarcode()"
+                title="Escanear con cámara"
+                style="width:40px;height:40px;flex-shrink:0;background:var(--bg-card);
+                  border:1px solid var(--border);border-radius:var(--radius-md);
+                  cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </button>
             </div>
-            <div id="stock-camera-status"
-              style="position:absolute; bottom:0; left:0; right:0; padding:6px;
-                     background:linear-gradient(transparent,rgba(0,0,0,0.8));
-                     text-align:center; font-size:11px; font-weight:600; color:white;">
-              Apuntá al código de barras
+            <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">
+              "Generar" crea un código propio 26122205XXXX para productos sin código
+            </div>
+            <!-- Cámara -->
+            <div id="stock-camera-container" style="display:none;margin-top:8px;position:relative;
+              border-radius:var(--radius-md);overflow:hidden;border:2px solid var(--green-primary);background:#000;">
+              <video id="stock-camera-video" autoplay playsinline muted
+                style="width:100%;max-height:180px;object-fit:cover;display:block;"></video>
+              <canvas id="stock-camera-canvas" style="display:none;"></canvas>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+                <div style="position:relative;width:200px;height:60px;">
+                  <div style="position:absolute;inset:0;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);border-radius:4px;"></div>
+                  <div style="position:absolute;inset:0;border:2px solid var(--green-primary);border-radius:4px;"></div>
+                  <div style="position:absolute;top:-2px;left:-2px;width:14px;height:14px;border-top:3px solid var(--green-primary);border-left:3px solid var(--green-primary);"></div>
+                  <div style="position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-top:3px solid var(--green-primary);border-right:3px solid var(--green-primary);"></div>
+                  <div style="position:absolute;bottom:-2px;left:-2px;width:14px;height:14px;border-bottom:3px solid var(--green-primary);border-left:3px solid var(--green-primary);"></div>
+                  <div style="position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;border-bottom:3px solid var(--green-primary);border-right:3px solid var(--green-primary);"></div>
+                </div>
+              </div>
+              <div style="position:absolute;top:6px;right:6px;display:flex;gap:4px;">
+                <button id="stock-torch-btn" onclick="Stock.toggleTorch()" title="Linterna"
+                  style="width:32px;height:32px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.25);
+                    border-radius:7px;cursor:pointer;display:none;align-items:center;justify-content:center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M9 18h6M10 22h4M12 2a7 7 0 0 1 7 7c0 2.6-1.4 4.9-3.5 6.2V17a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-1.8A7 7 0 0 1 12 2z"/>
+                  </svg>
+                </button>
+                <button onclick="Stock.stopCamara()"
+                  style="width:32px;height:32px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.25);
+                    border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">✕</button>
+              </div>
+              <div id="stock-camera-status"
+                style="position:absolute;bottom:0;left:0;right:0;padding:5px;
+                  background:linear-gradient(transparent,rgba(0,0,0,0.8));
+                  text-align:center;font-size:11px;font-weight:600;color:white;">
+                Apuntá al código de barras
+              </div>
+            </div>
+          </div>
+
+          <!-- Stock actual (oculto para peso) -->
+          <div id="stock-field" style="display:${esPeso ? 'none' : 'block'};">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="form-group" style="margin:0;">
+                <label>Stock actual</label>
+                <div style="display:flex;gap:6px;align-items:stretch;">
+                  <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0" style="flex:1;min-width:0;">
+                  ${cfg.unidades.length > 1 ? `
+                  <select id="prod-unidad-stock" onchange="Stock.onUnidadStockChange(this.value)"
+                    style="flex:0 0 auto;padding:0 8px;background:var(--bg-card);border:1px solid var(--border);
+                      border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:12px;cursor:pointer;">
+                    ${cfg.unidades.map(u => `<option value="${u.v}" ${unidadActual === u.v ? 'selected' : ''}>${u.l}</option>`).join('')}
+                  </select>` : `
+                  <div style="display:flex;align-items:center;padding:0 10px;background:var(--bg-card);border:1px solid var(--border);
+                    border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary);font-weight:600;white-space:nowrap;">
+                    ${cfg.unidades[0].l}
+                  </div>`}
+                </div>
+                <input type="hidden" id="prod-unidad-stock-val" value="${unidadActual}">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Descripción</label>
+                <input type="text" id="prod-desc" value="${prod?.descripcion || ''}" placeholder="Opcional">
+              </div>
             </div>
           </div>
         </div>
-        <div class="form-group">
-          <label id="label-precio">Precio de venta${esPeso ? ' por kg *' : ' *'}</label>
-          <div style="position:relative;">
-            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
-                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
-            <input type="number" id="prod-precio" value="${prod?.precio || ''}" min="0" step="0.01"
-              style="padding-left:26px;">
+
+        <!-- ── SECCIÓN 4: Extras condicionales ── -->
+        ${cfg.vencimiento || cfg.talle || cfg.color || cfg.envio ? `
+        <div style="height:1px;background:var(--border);margin:0 0 14px;"></div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+            Información adicional
           </div>
-          <div id="precio-hint" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:${esPeso ? 'block' : 'none'};">
-            Precio por kilogramo. Ej: Jamón a $8.000/kg → ingresás 8000. Al vender se cobra por los gramos que pese.
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Precio de costo</label>
-          <div style="position:relative;">
-            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
-                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
-            <input type="number" id="prod-costo" value="${prod?.precioCosto || ''}" min="0" step="0.01"
-              style="padding-left:26px;">
-          </div>
-        </div>
-
-        <!-- Stock: ocultar para productos por peso -->
-        <div class="form-group" id="stock-field" style="display:${esPeso ? 'none' : 'block'};">
-          <label>Stock actual</label>
-          <div style="display:flex; gap:8px; align-items:stretch;">
-            <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0" style="flex:1;">
-            ${cfg.unidades.length > 1 ? `
-            <select id="prod-unidad-stock"
-              onchange="Stock.onUnidadStockChange(this.value)"
-              style="flex:0 0 auto; min-width:130px; padding:8px 10px;
-                     background:var(--bg-card); border:1px solid var(--border);
-                     border-radius:var(--radius-md); color:var(--text-primary);
-                     font-family:var(--font); font-size:13px; cursor:pointer;">
-              ${cfg.unidades.map(u => `<option value="${u.v}" ${unidadActual === u.v ? 'selected' : ''}>${u.l}</option>`).join('')}
-            </select>
-            ` : `
-            <div style="display:flex; align-items:center; padding:0 12px;
-                        background:var(--bg-card); border:1px solid var(--border);
-                        border-radius:var(--radius-md); font-size:13px;
-                        color:var(--text-secondary); font-weight:600; white-space:nowrap;">
-              ${cfg.unidades[0].l}
-            </div>
-            `}
-          </div>
-          <input type="hidden" id="prod-unidad-stock-val" value="${unidadActual}">
-        </div>
-
-        <div class="form-group">
-          <label>Categoría</label>
-          <input type="text" id="prod-cat" value="${prod?.categoria || ''}" list="cats-datalist">
-          <datalist id="cats-datalist">
-            ${cats.map(c => `<option value="${c}">`).join('')}
-          </datalist>
-        </div>
-
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>Descripción</label>
-          <input type="text" id="prod-desc" value="${prod?.descripcion || ''}">
-        </div>
-
-        <!-- Fecha de vencimiento — solo rubros que lo necesitan -->
-        ${cfg.vencimiento ? `
-        <div class="form-group" style="grid-column:1/-1;">
-          <label style="display:flex; align-items:center; gap:6px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            Fecha de vencimiento
-            <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
-          </label>
-          <input type="date" id="prod-vencimiento"
-            value="${prod?.vencimiento || ''}"
-            min="${new Date().toISOString().split('T')[0]}">
-          ${prod?.vencimiento ? (() => {
-            const dias = Math.ceil((new Date(prod.vencimiento) - new Date()) / (1000*60*60*24));
-            const color = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--green-primary)';
-            const texto = dias <= 0 ? 'Vencido' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`;
-            return `<div style="font-size:11px; color:${color}; margin-top:4px; font-weight:600;">⚠ ${texto}</div>`;
-          })() : ''}
-        </div>
-        ` : ''}
-
-        <!-- Talle y Color — solo indumentaria -->
-        ${cfg.talle ? `
-        <div class="form-group">
-          <label style="display:flex; align-items:center; gap:6px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/>
-            </svg>
-            Talle <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
-          </label>
-          <input type="text" id="prod-talle" value="${prod?.talle || ''}" placeholder="XS, S, M, L, XL, 38, 40...">
-        </div>
-        ` : ''}
-
-        ${cfg.color ? `
-        <div class="form-group">
-          <label style="display:flex; align-items:center; gap:6px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/>
-              <circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/>
-              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
-            </svg>
-            Color <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
-          </label>
-          <input type="text" id="prod-color" value="${prod?.color || ''}" placeholder="Rojo, Azul marino, Negro...">
-        </div>
-        ` : ''}
-
-        <!-- Envío — indumentaria, electrónica, comida -->
-        ${cfg.envio ? `
-        <div class="form-group" style="grid-column:1/-1;">
-          <label style="display:flex; align-items:center; gap:6px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
-            Costo de envío
-            <span style="font-size:10px; color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span>
-          </label>
-          <div style="position:relative;">
-            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
-                         color:var(--text-muted); font-weight:600; font-size:13px;">$</span>
-            <input type="number" id="prod-envio" value="${prod?.costoEnvio || ''}" min="0" step="0.01"
-              style="padding-left:26px;" placeholder="0 = envío gratis">
+          <div style="display:grid;grid-template-columns:${(cfg.talle && cfg.color) ? '1fr 1fr' : '1fr'};gap:10px;">
+            ${cfg.vencimiento ? `
+            <div class="form-group" style="margin:0;${!cfg.talle && !cfg.color ? '' : 'grid-column:1/-1;'}">
+              <label style="display:flex;align-items:center;gap:5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Vencimiento <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">(opcional)</span>
+              </label>
+              <input type="date" id="prod-vencimiento" value="${prod?.vencimiento || ''}"
+                min="${new Date().toISOString().split('T')[0]}">
+              ${prod?.vencimiento ? (() => {
+                const dias = Math.ceil((new Date(prod.vencimiento) - new Date()) / (1000*60*60*24));
+                const color = dias <= 0 ? 'var(--red)' : dias <= 7 ? 'var(--red)' : dias <= 30 ? 'var(--orange)' : 'var(--green-primary)';
+                const texto = dias <= 0 ? 'Vencido' : dias === 1 ? 'Vence mañana' : 'Vence en ' + dias + ' días';
+                return '<div style="font-size:11px;color:'+color+';margin-top:3px;font-weight:600;">⚠ '+texto+'</div>';
+              })() : ''}
+            </div>` : ''}
+            ${cfg.talle ? `
+            <div class="form-group" style="margin:0;">
+              <label>Talle <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;">(opcional)</span></label>
+              <input type="text" id="prod-talle" value="${prod?.talle || ''}" placeholder="XS, S, M, L, XL...">
+            </div>` : ''}
+            ${cfg.color ? `
+            <div class="form-group" style="margin:0;">
+              <label>Color <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;">(opcional)</span></label>
+              <input type="text" id="prod-color" value="${prod?.color || ''}" placeholder="Rojo, Azul...">
+            </div>` : ''}
+            ${cfg.envio ? `
+            <div class="form-group" style="margin:0;grid-column:1/-1;">
+              <label>Costo de envío <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;">(opcional)</span></label>
+              <div style="position:relative;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:700;">$</span>
+                <input type="number" id="prod-envio" value="${prod?.costoEnvio || ''}" min="0" step="0.01" style="padding-left:24px;" placeholder="0 = gratis">
+              </div>
+            </div>` : ''}
           </div>
         </div>
         ` : ''}
 
-      </div>
+        <div style="height:1px;background:var(--border);margin:0 0 14px;"></div>
 
-      <div class="form-group">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
-                       font-size:13px; text-transform:none; letter-spacing:0;">
-          <label class="toggle">
+        <!-- ── SECCIÓN 5: Activo + Promo ── -->
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:10px 14px;background:var(--bg-secondary);border:1px solid var(--border);
+          border-radius:var(--radius-md);margin-bottom:12px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;">Producto activo</div>
+            <div style="font-size:11px;color:var(--text-muted);">Visible en el punto de venta</div>
+          </div>
+          <label class="toggle" style="margin:0;">
             <input type="checkbox" id="prod-activo" ${prod?.activo !== false ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
-          Producto activo (visible en ventas)
-        </label>
-      </div>
-
-      <!-- Sección de promo -->
-      <div style="border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; margin-bottom:16px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-              <line x1="7" y1="7" x2="7.01" y2="7"/>
-            </svg>
-            <span style="font-weight:700; font-size:13px;">Promoción</span>
-            <span style="font-size:10px; color:var(--text-muted);">(opcional)</span>
-          </div>
-          <label class="toggle" style="margin:0;">
-            <input type="checkbox" id="prod-tiene-promo"
-              ${prod?.promo?.activa ? 'checked' : ''}
-              onchange="Stock.togglePromo(this.checked)">
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
-        <div id="promo-opciones" style="display:${prod?.promo?.activa ? 'block' : 'none'};">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-            ${[
-              { id:'2x1',    label:'2x1',                     sub:'Llevás 2, pagás 1',            svg:'<text x="2" y="17" font-size="11" font-weight="900" fill="currentColor">2x1</text>' },
-              { id:'3x1',    label:'3x1',                     sub:'Llevás 3, pagás 1',            svg:'<text x="2" y="17" font-size="11" font-weight="900" fill="currentColor">3x1</text>' },
-              { id:'4x1',    label:'4x1',                     sub:'Llevás 4, pagás 1',            svg:'<text x="2" y="17" font-size="11" font-weight="900" fill="currentColor">4x1</text>' },
-              { id:'50off2', label:'50% OFF 2da unidad',      sub:'La 2da unidad al 50%',         svg:'<text x="1" y="13" font-size="8" font-weight="900" fill="currentColor">50%</text><text x="1" y="21" font-size="7" fill="currentColor">2da ud</text>' },
-              { id:'30off',  label:'30% OFF',                 sub:'Descuento del 30%',            svg:'<text x="1" y="13" font-size="8" font-weight="900" fill="currentColor">30%</text><text x="2" y="21" font-size="7" fill="currentColor">OFF</text>' },
-              { id:'custom', label:'Personalizada',           sub:'Escribí tu propia promo',      svg:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' },
-            ].map(p => {
-              const sel = prod?.promo?.tipo === p.id;
-              return `
-                <div onclick="Stock.selPromo('${p.id}')" id="promo-op-${p.id}"
-                  style="display:flex; align-items:center; gap:10px; padding:10px 12px;
-                         border:2px solid ${sel ? 'var(--orange)' : 'var(--border)'};
-                         border-radius:var(--radius-md); cursor:pointer; transition:all 0.15s;
-                         background:${sel ? 'rgba(240,165,0,0.08)' : 'var(--bg-card)'};">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                       stroke="${sel ? 'var(--orange)' : 'var(--text-muted)'}" stroke-width="1.5">
-                    ${p.svg.startsWith('<text') ? p.svg.replace('fill="currentColor"', `fill="${sel ? 'var(--orange)' : 'var(--text-muted)'}"`) : p.svg}
-                  </svg>
-                  <div>
-                    <div style="font-size:12px; font-weight:700; color:${sel ? 'var(--orange)' : 'var(--text-primary)'};">${p.label}</div>
-                    <div style="font-size:10px; color:var(--text-muted);">${p.sub}</div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
+        <!-- Promo -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+            background:var(--bg-secondary);">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2">
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                <line x1="7" y1="7" x2="7.01" y2="7"/>
+              </svg>
+              <span style="font-weight:700;font-size:13px;">Promoción</span>
+              <span style="font-size:10px;color:var(--text-muted);">opcional</span>
+            </div>
+            <label class="toggle" style="margin:0;">
+              <input type="checkbox" id="prod-tiene-promo"
+                ${prod?.promo?.activa ? 'checked' : ''}
+                onchange="Stock.togglePromo(this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-
-          <!-- Campo texto para promo personalizada -->
-          <div id="promo-custom-field" style="display:${prod?.promo?.tipo === 'custom' ? 'block' : 'none'}; margin-top:10px;">
-            <input type="text" id="promo-custom-texto"
-              value="${prod?.promo?.texto || ''}"
-              placeholder="Ej: 3x2 en artículos seleccionados...">
+          <div id="promo-opciones" style="display:${prod?.promo?.activa ? 'block' : 'none'};padding:12px 14px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              ${[
+                { id:'2x1',    label:'2x1',          sub:'Llevás 2, pagás 1' },
+                { id:'3x1',    label:'3x1',          sub:'Llevás 3, pagás 1' },
+                { id:'4x1',    label:'4x1',          sub:'Llevás 4, pagás 1' },
+                { id:'50off2', label:'50% en la 2da',sub:'La 2da al 50%' },
+                { id:'30off',  label:'30% OFF',      sub:'Desc. del 30%' },
+                { id:'custom', label:'Personalizada', sub:'Tu propia promo' },
+              ].map(p => {
+                const sel = prod?.promo?.tipo === p.id;
+                return `<div onclick="Stock.selPromo('${p.id}')" id="promo-op-${p.id}"
+                  style="padding:8px 10px;border:2px solid ${sel ? 'var(--orange)' : 'var(--border)'};
+                    border-radius:var(--radius-md);cursor:pointer;transition:all 0.15s;
+                    background:${sel ? 'rgba(240,165,0,0.08)' : 'var(--bg-card)'};">
+                  <div style="font-size:12px;font-weight:700;color:${sel ? 'var(--orange)' : 'var(--text-primary)'};">${p.label}</div>
+                  <div style="font-size:10px;color:var(--text-muted);">${p.sub}</div>
+                </div>`;
+              }).join('')}
+            </div>
+            <div id="promo-custom-field" style="display:${prod?.promo?.tipo === 'custom' ? 'block' : 'none'};margin-top:8px;">
+              <input type="text" id="promo-custom-texto" value="${prod?.promo?.texto || ''}"
+                placeholder="Ej: 3x2 en artículos seleccionados...">
+            </div>
+            <input type="hidden" id="promo-tipo-seleccionado" value="${prod?.promo?.tipo || ''}">
           </div>
-
-          <input type="hidden" id="promo-tipo-seleccionado" value="${prod?.promo?.tipo || ''}">
         </div>
+
       </div>
 
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="Stock.guardar('${id || ''}')" style="width:auto;">
+        <button class="btn btn-primary" onclick="Stock.guardar('${id || ''}')" style="min-width:130px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
           ${prod ? 'Guardar cambios' : 'Crear producto'}
         </button>
       </div>
