@@ -220,6 +220,16 @@ const Ventas = {
               </div>
             </div>
 
+            <div id="consumo-empleado-section" style="display:none; margin-bottom:10px;">
+              <label style="font-size:11px; font-weight:700; color:var(--purple); text-transform:uppercase; letter-spacing:.05em;">Elegir empleada</label>
+              <select id="consumo-empleada-sel"
+                style="width:100%; margin-top:6px; padding:8px 10px; background:var(--bg-card);
+                border:1px solid var(--purple); border-radius:var(--radius-md);
+                color:var(--text-primary); font-family:var(--font); font-size:13px; cursor:pointer;">
+                <option value="">Cargando empleadas...</option>
+              </select>
+            </div>
+
             <button class="cobrar-btn" id="cobrar-btn" onclick="Ventas.cobrar()" disabled
               style="display:flex; align-items:center; justify-content:center; gap:8px;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1289,6 +1299,7 @@ const Ventas = {
   },
 
   _renderMetodosPago() {
+    const tieneEmpleadas = PS.businessData?.modulo_empleadas === true;
     const metodos = [
       { id:'Efectivo',           label:'Efectivo',       color:'#2ECC71', py:false, icon:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
       { id:'Tarjeta',            label:'Tarjeta',        color:'#3B82F6', py:false, icon:'<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' },
@@ -1296,6 +1307,8 @@ const Ventas = {
       { id:'Cuenta corriente',   label:'Cta. corriente', color:'#F59E0B', py:false, icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
       { id:'PedidosYa Efectivo', label:'PY Efectivo',   color:'#FF3C00', py:true,  pyBg:'#FF3C00' },
       { id:'PedidosYa Digital',  label:'PY Tarjeta/Transf.', color:'#E8001A', py:true,  pyBg:'#E8001A' },
+      ...(tieneEmpleadas ? [{ id:'Consumo empleado', label:'Consumo empleado', color:'#7C3AED', py:false,
+        icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' }] : []),
     ];
     var self = this;
     return metodos.map(function(m) {
@@ -1320,6 +1333,23 @@ const Ventas = {
     const s = document.getElementById('efectivo-section');
     if (s) s.style.display = metodo === 'Efectivo' ? 'block' : 'none';
 
+    // Consumo empleado: mostrar selector y cargar empleadas
+    const empSec = document.getElementById('consumo-empleado-section');
+    if (empSec) {
+      empSec.style.display = metodo === 'Consumo empleado' ? 'block' : 'none';
+      if (metodo === 'Consumo empleado') {
+        const sel = document.getElementById('consumo-empleada-sel');
+        if (sel && sel.options.length <= 1) {
+          db.collection('businesses').doc(PS.businessId).collection('empleadas').get()
+            .then(snap => {
+              const empleadas = snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.activa!==false);
+              sel.innerHTML = '<option value="">-- Elegir empleada --</option>'
+                + empleadas.map(e=>'<option value="'+e.id+'">'+e.nombre+'</option>').join('');
+            }).catch(()=>{});
+        }
+      }
+    }
+
     // Colores por método
     const colors = {
       'Efectivo':           '#2ECC71',
@@ -1328,6 +1358,7 @@ const Ventas = {
       'Cuenta corriente':   '#F59E0B',
       'PedidosYa Efectivo': '#FF3C00',
       'PedidosYa Digital':  '#E8001A',
+      'Consumo empleado':   '#7C3AED',
     };
     const color = colors[metodo] || 'var(--green-primary)';
 
@@ -1367,6 +1398,59 @@ const Ventas = {
     }
   },
 
+
+  _mostrarBtnTicket() {
+    const existente = document.getElementById('btn-imprimir-ticket');
+    if (existente) existente.remove();
+    const btn = document.createElement('button');
+    btn.id = 'btn-imprimir-ticket';
+    btn.className = 'btn btn-secondary w-full mt-8';
+    btn.style.cssText = 'font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimir ticket';
+    btn.addEventListener('click', () => Ventas.imprimirTicket());
+    const vaciar = document.querySelector('.btn-ghost.w-full.mt-8');
+    if (vaciar) vaciar.parentNode.insertBefore(btn, vaciar);
+  },
+
+  imprimirTicket() {
+    const s = this._lastSale;
+    if (!s) { showToast('No hay venta reciente para imprimir', 'warning'); return; }
+    const bizName = (PS.businessData?.name || 'PuntoStock').toUpperCase();
+    const metodos = {
+      'Efectivo':'Efectivo','Tarjeta':'Tarjeta','Transferencia':'Transfer.',
+      'Cuenta corriente':'Cta. Cte.','PedidosYa Efectivo':'PY Efectivo',
+      'PedidosYa Digital':'PY Digital','Consumo empleado':'Cons. Empleado'
+    };
+    const itemsHTML = s.items.map(i => {
+      const nom = (i.nombre||'').length > 20 ? (i.nombre||'').substring(0,19)+'.' : (i.nombre||'');
+      const sub = formatPrice(i.precio * i.cantidad);
+      return '<div style="display:flex;justify-content:space-between;font-size:10px;margin:2px 0;">'
+        + '<span>'+nom+' x'+i.cantidad+'</span><span>'+sub+'</span></div>';
+    }).join('');
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
+      + CSS_58MM + 'body{font-size:10px}</style></head><body>'
+      + '<div class="center bold" style="font-size:13px;letter-spacing:1px;">'+bizName+'</div>'
+      + (PS.businessData?.direccion ? '<div class="center" style="font-size:9px;">'+PS.businessData.direccion+'</div>' : '')
+      + '<div class="center" style="font-size:9px;">Ticket de Venta</div>'
+      + '<hr class="sep">'
+      + itemsHTML
+      + '<hr class="sep">'
+      + '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;"><span>TOTAL</span><span>'+formatPrice(s.total)+'</span></div>'
+      + '<hr class="sep">'
+      + '<div style="font-size:10px;">'
+      + '<div>Pago: '+(metodos[s.metodoPago]||s.metodoPago)+'</div>'
+      + (s.empNombre ? '<div>Empleada: '+s.empNombre+'</div>' : '')
+      + (s.montoRecibido ? '<div style="display:flex;justify-content:space-between;"><span>Recibido:</span><span>'+formatPrice(s.montoRecibido)+'</span></div>' : '')
+      + (s.vuelto ? '<div style="display:flex;justify-content:space-between;font-weight:900;"><span>VUELTO:</span><span>'+formatPrice(s.vuelto)+'</span></div>' : '')
+      + '<div>N° '+s.saleId.substring(0,8).toUpperCase()+'</div>'
+      + '<div>'+s.timestamp.toLocaleString('es-AR')+'</div>'
+      + '</div>'
+      + '<hr class="sep">'
+      + '<div class="center" style="font-size:9px;">Gracias por su compra!</div>'
+      + '</body></html>';
+    imprimirHTML(html);
+  },
+
   // ── Cobrar ────────────────────────────────────────────────
   async cobrar() {
     if (this.cart.length === 0) return;
@@ -1388,12 +1472,27 @@ const Ventas = {
       const bizRef = db.collection('businesses').doc(PS.businessId);
       const ventaRef = bizRef.collection('ventas').doc();
 
+      // Datos adicionales para consumo empleado
+      let empId = null, empNombre = null;
+      if (metodoPago === 'Consumo empleado') {
+        const sel = document.getElementById('consumo-empleada-sel');
+        empId = sel?.value;
+        empNombre = sel?.options[sel.selectedIndex]?.text;
+        if (!empId) { showToast('Elegí una empleada', 'warning'); btn.disabled=false; btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Cobrar'; return; }
+      }
+
+      const montoRecibido = metodoPago === 'Efectivo'
+        ? (parseFloat(document.getElementById('monto-recibido')?.value) || total) : null;
+      const vuelto = montoRecibido ? Math.max(0, montoRecibido - total) : null;
+
       batch.set(ventaRef, {
         items: this.cart.map(i => ({
           id: i.prodId || i.id, nombre: i.nombre,
           precio: i.precio, cantidad: i.cantidad, esPeso: i.esPeso || false
         })),
         subtotal, descuento: descPct, total, metodoPago,
+        montoRecibido, vuelto,
+        ...(empId ? { empleadaId: empId, empleadaNombre: empNombre } : {}),
         fecha: firebase.firestore.FieldValue.serverTimestamp(),
         usuario: PS.user.uid
       });
@@ -1409,6 +1508,29 @@ const Ventas = {
 
       await batch.commit();
 
+      // Registrar consumo en empleada si corresponde
+      if (metodoPago === 'Consumo empleado' && empId) {
+        const semanaKey = Empleadas?._getSemanaKey ? Empleadas._getSemanaKey() : new Date().toISOString().substring(0,10);
+        await db.collection('businesses').doc(PS.businessId)
+          .collection('empleadas').doc(empId).collection('consumos').add({
+            total, semana: semanaKey,
+            descripcion: this.cart.map(i=>i.nombre+' x'+i.cantidad).join(', '),
+            items: this.cart.map(i=>({ nombre: i.nombre, precio: i.precio, cantidad: i.cantidad })),
+            fecha: firebase.firestore.FieldValue.serverTimestamp(),
+            fechaLabel: new Date().toLocaleString('es-AR')
+          });
+      }
+
+      // Guardar última venta para imprimir ticket
+      this._lastSale = {
+        saleId: ventaRef.id,
+        items: this.cart.slice(),
+        total, subtotal, descuento: descPct, metodoPago,
+        montoRecibido, vuelto,
+        empNombre,
+        timestamp: new Date()
+      };
+
       // Stock local
       this.cart.filter(i => !i.esPeso).forEach(item => {
         const realId = item.esPromo ? item.id.replace('_promo', '') : item.id;
@@ -1420,10 +1542,8 @@ const Ventas = {
       this.renderCart();
       this.updateTotals();
       this.renderProductos();
-      // Resetear botón cobrar
       btn.disabled = false;
       btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Cobrar';
-      // Deseleccionar método de pago
       document.querySelectorAll('[data-pago]').forEach(l => {
         l.style.border = '2px solid var(--border)';
         l.style.background = 'transparent';
@@ -1431,7 +1551,11 @@ const Ventas = {
       });
       document.querySelectorAll('input[name="pago"]').forEach(r => r.checked = false);
       document.getElementById('efectivo-section').style.display = 'none';
+      const empSec2 = document.getElementById('consumo-empleado-section');
+      if (empSec2) empSec2.style.display = 'none';
       showToast('Venta registrada — ' + formatPrice(total), 'success');
+      // Mostrar botón imprimir ticket
+      Ventas._mostrarBtnTicket();
 
     } catch (e) {
       console.error(e);
