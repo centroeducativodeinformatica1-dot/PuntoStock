@@ -1163,6 +1163,77 @@ const Stock = {
     await this.load();
   },
 
+  // ════════════════════════════════════════════════════
+  //  GENERADOR DE CÓDIGOS PROPIOS 26122205XXXX
+  // ════════════════════════════════════════════════════
+
+  _codigosGenerados: [],
+
+  generarCodigoPropio() {
+    const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return '26122205' + random;
+  },
+
+  generarYAplicar() {
+    const nombre = document.getElementById('prod-nombre')?.value.trim() || 'Sin nombre';
+    const codigo = this.generarCodigoPropio();
+    const input  = document.getElementById('prod-barcode');
+    if (input) {
+      input.value = codigo;
+      input.style.borderColor = 'var(--green-primary)';
+      setTimeout(() => { if (input) input.style.borderColor = ''; }, 2000);
+    }
+    this._codigosGenerados.push({ codigo, nombre });
+    showToast('Código generado: ' + codigo, 'success');
+  },
+
+  _cargarJsBarcode() {
+    return new Promise(resolve => {
+      if (window.JsBarcode) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js';
+      s.onload = resolve; s.onerror = resolve;
+      document.head.appendChild(s);
+    });
+  },
+
+  async descargarPDF() {
+    if (!this._codigosGenerados.length) {
+      showToast('Generá al menos un código primero', 'warning'); return;
+    }
+    await this._cargarJsBarcode();
+    const bizName = (PS.businessData?.name || 'PuntoStock').toUpperCase();
+    const items = this._codigosGenerados.map(c => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      try {
+        JsBarcode(svg, c.codigo, {
+          format: 'CODE128', width: 2, height: 55,
+          displayValue: true, fontSize: 11, margin: 5,
+          background: '#fff', lineColor: '#000'
+        });
+      } catch(e) {}
+      return '<div class="item">' + svg.outerHTML + '<div class="nombre">' + c.nombre + '</div></div>';
+    });
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Codigos ' + bizName + '</title>'
+      + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:16px}'
+      + '.header{text-align:center;margin-bottom:16px}.header h1{font-size:16px;font-weight:900}'
+      + '.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}'
+      + '.item{border:1px dashed #d1d5db;border-radius:8px;padding:10px;text-align:center;page-break-inside:avoid}'
+      + '.item svg{width:100%;max-width:160px;height:auto}'
+      + '.nombre{font-size:10px;font-weight:700;color:#1f2937;margin-top:4px;word-break:break-word}'
+      + '@media print{@page{margin:8mm}}</style></head><body>'
+      + '<div class="header"><h1>' + bizName + '</h1><p>Códigos — ' + new Date().toLocaleDateString('es-AR') + '</p></div>'
+      + '<div class="grid">' + items.join('') + '</div></body></html>';
+    imprimirHTML(html);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'codigos-' + new Date().toLocaleDateString('es-AR').replace(/\//g, '-') + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
   // ══════════════════════════════════════════════════════════
   // CÁMARA EN MODAL DE STOCK — para escanear código de barras
   // ══════════════════════════════════════════════════════════
