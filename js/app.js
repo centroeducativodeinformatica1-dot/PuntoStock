@@ -110,7 +110,8 @@ const PS = {
       historial:   'Historial de Ventas',
       clientes:    'Clientes',
       proveedores: 'Proveedores',
-      caja:        'Cierre de Caja',
+      caja:        'Caja',
+      empleadas:   'Empleadas',
       admin:       'Panel de Administración',
       config:      'Configuración'
     };
@@ -124,6 +125,7 @@ const PS = {
       clientes:    () => Clientes.load(),
       proveedores: () => Proveedores.load(),
       caja:        () => Caja.load(),
+      empleadas:   () => Empleadas.load(),
       admin:       () => Admin.load(),
       config:      () => Config.load()
     };
@@ -339,6 +341,41 @@ const PS = {
 
     const adminNav = document.getElementById('admin-nav-item');
     if (adminNav) adminNav.style.display = this.isAdmin ? 'flex' : 'none';
+
+    // Agregar nav item de empleadas si no existe
+    if (!document.getElementById('empleadas-nav-item')) {
+      const cajaNav = document.querySelector('[data-page="caja"]');
+      if (cajaNav) {
+        const empNav = document.createElement('div');
+        empNav.id = 'empleadas-nav-item';
+        empNav.className = 'nav-item';
+        empNav.setAttribute('data-page', 'empleadas');
+        empNav.onclick = () => PS.navigate('empleadas');
+        empNav.innerHTML = `
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </span>
+          Empleadas
+        `;
+        cajaNav.parentNode.insertBefore(empNav, cajaNav.nextSibling);
+      }
+    }
+
+    // Agregar page-empleadas si no existe
+    if (!document.getElementById('page-empleadas')) {
+      const mainContent = document.getElementById('main-content') || document.querySelector('.pages-container');
+      if (mainContent) {
+        const pageEl = document.createElement('div');
+        pageEl.id = 'page-empleadas';
+        pageEl.className = 'page';
+        mainContent.appendChild(pageEl);
+      }
+    }
   },
 
   // Cambiar al negocio activo
@@ -512,4 +549,38 @@ function confirmDialog(msg, onConfirm) {
 // ── Sidebar mobile ────────────────────────────────────────────
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ════════════════════════════════════════════════════
+//   IMPRESIÓN TÉRMICA 58mm
+// ════════════════════════════════════════════════════
+
+const CSS_58MM = `
+  * { margin:0; padding:0; box-sizing:border-box; }
+  @page { size: 58mm auto; margin: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px; width: 58mm; max-width: 58mm;
+    margin: 0; padding: 4px 6px; color: #000;
+  }
+  .center { text-align: center; }
+  .bold   { font-weight: 700; }
+  .sep    { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+  table   { width: 100%; border-collapse: collapse; font-size: 10px; }
+  td, th  { padding: 1px 0; vertical-align: top; }
+  @media print { button { display: none !important; } }
+`;
+
+function imprimirHTML(html) {
+  let iframe = document.getElementById('_print_iframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = '_print_iframe';
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;border:0;';
+    document.body.appendChild(iframe);
+  }
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  iframe.contentWindow.focus();
+  setTimeout(() => iframe.contentWindow.print(), 400);
 }
