@@ -554,7 +554,8 @@ const Stock = {
               <div class="form-group" style="margin:0;">
                 <label>Stock actual</label>
                 <div style="display:flex;gap:6px;align-items:stretch;">
-                  <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0" style="flex:1;min-width:0;">
+                  <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0"
+                    style="flex:1;min-width:0;color:var(--text-primary);background:var(--bg-card);">
                   ${cfg.unidades.length > 1 ? `
                   <select id="prod-unidad-stock" onchange="Stock.onUnidadStockChange(this.value)"
                     style="flex:0 0 auto;padding:0 8px;background:var(--bg-card);border:1px solid var(--border);
