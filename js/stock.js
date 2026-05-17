@@ -555,10 +555,10 @@ const Stock = {
                 <label>Stock actual</label>
                 <div style="display:flex;gap:6px;align-items:stretch;">
                   <input type="number" id="prod-stock" value="${prod?.stock ?? 0}" min="0"
-                    style="flex:1;min-width:0;color:var(--text-primary);background:var(--bg-card);">
+                    style="flex:1;min-width:70px;color:var(--text-primary);background:var(--bg-card);font-size:16px;font-weight:700;text-align:center;">
                   ${cfg.unidades.length > 1 ? `
                   <select id="prod-unidad-stock" onchange="Stock.onUnidadStockChange(this.value)"
-                    style="flex:0 0 auto;padding:0 8px;background:var(--bg-card);border:1px solid var(--border);
+                    style="flex:0 0 auto;max-width:110px;padding:0 8px;background:var(--bg-card);border:1px solid var(--border);
                       border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:12px;cursor:pointer;">
                     ${cfg.unidades.map(u => `<option value="${u.v}" ${unidadActual === u.v ? 'selected' : ''}>${u.l}</option>`).join('')}
                   </select>` : `
