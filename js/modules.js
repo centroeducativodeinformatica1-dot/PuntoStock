@@ -2383,6 +2383,33 @@ const Config = {
               Define las unidades disponibles al cargar productos en el stock.
             </div>
           </div>
+
+          <!-- Módulo Empleadas -->
+          <div class="form-group">
+            <label>Módulos opcionales</label>
+            <label style="display:flex; align-items:center; gap:12px; padding:12px 14px;
+              background:var(--bg-secondary); border:1px solid var(--border);
+              border-radius:var(--radius-md); cursor:pointer;">
+              <div style="position:relative; width:44px; height:24px; flex-shrink:0;">
+                <input type="checkbox" id="cfg-empleadas" ${biz.modulo_empleadas ? 'checked' : ''}
+                  style="opacity:0;position:absolute;width:100%;height:100%;cursor:pointer;z-index:1;">
+                <div id="cfg-empleadas-track" style="width:44px;height:24px;border-radius:12px;
+                  background:${biz.modulo_empleadas ? 'var(--green-primary)' : 'var(--bg-card)'};
+                  border:1px solid var(--border);transition:background 0.2s;position:absolute;top:0;left:0;"></div>
+                <div id="cfg-empleadas-thumb" style="width:18px;height:18px;border-radius:50%;
+                  background:white;position:absolute;top:3px;
+                  left:${biz.modulo_empleadas ? '23px' : '3px'};
+                  transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+              </div>
+              <div>
+                <div style="font-weight:600; font-size:13px;">Módulo Empleadas</div>
+                <div style="font-size:11px; color:var(--text-muted);">
+                  Habilita consumos de empleadas y el método de pago "Consumo empleado" en ventas
+                </div>
+              </div>
+            </label>
+          </div>
+
           <button class="btn btn-primary" style="width:auto;" onclick="Config.guardar()">
             Guardar cambios
           </button>
@@ -2422,15 +2449,20 @@ const Config = {
     const tel    = document.getElementById('cfg-tel').value.trim();
     const dir    = document.getElementById('cfg-dir').value.trim();
     const rubro  = document.getElementById('cfg-rubro').value;
+    const empMod = document.getElementById('cfg-empleadas')?.checked || false;
 
     if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
 
     try {
       await db.collection('businesses').doc(PS.businessId).update({
         name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro,
+        modulo_empleadas: empMod,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-      PS.businessData = { ...PS.businessData, name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro };
+      PS.businessData = { ...PS.businessData, name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro, modulo_empleadas: empMod };
+      // Ocultar/mostrar nav empleadas según módulo
+      const empNav = document.getElementById('empleadas-nav-item');
+      if (empNav) empNav.style.display = empMod ? 'flex' : 'none';
       PS.renderSidebar();
       showToast('Configuración guardada', 'success');
     } catch (e) {
