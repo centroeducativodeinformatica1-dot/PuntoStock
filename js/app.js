@@ -365,6 +365,9 @@ const PS = {
         cajaNav.parentNode.insertBefore(empNav, cajaNav.nextSibling);
       }
     }
+    // Mostrar/ocultar según módulo
+    const empNavEl = document.getElementById('empleadas-nav-item');
+    if (empNavEl) empNavEl.style.display = this.businessData?.modulo_empleadas ? 'flex' : 'none';
 
     // Agregar page-empleadas si no existe
     if (!document.getElementById('page-empleadas')) {
