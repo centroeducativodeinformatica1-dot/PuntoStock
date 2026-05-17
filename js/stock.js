@@ -432,6 +432,19 @@ const Stock = {
           <div style="display:flex; gap:8px; align-items:center;">
             <input type="text" id="prod-barcode" value="${prod?.codigoBarra || ''}"
               style="flex:1;" placeholder="Escribí o escaneá">
+            <button type="button" onclick="Stock.generarYAplicar()"
+              title="Generar código propio (26122205XXXX)"
+              style="height:42px; padding:0 10px; flex-shrink:0; background:var(--green-muted);
+                     border:1px solid var(--border-green); border-radius:var(--radius-md);
+                     cursor:pointer; display:flex; align-items:center; gap:5px;
+                     color:var(--green-primary); font-size:11px; font-weight:700; transition:all 0.2s;"
+              onmouseenter="this.style.background='var(--green-primary)';this.style.color='#0D1117'"
+              onmouseleave="this.style.background='var(--green-muted)';this.style.color='var(--green-primary)'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+              </svg>
+              Generar
+            </button>
             <button type="button" onclick="Stock.abrirCamaraBarcode()"
               title="Escanear con cámara"
               style="width:42px; height:42px; flex-shrink:0; background:var(--bg-card);
