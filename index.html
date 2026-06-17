@@ -532,6 +532,14 @@
 
 
 <script>
+  // Redirigir tokens de Supabase (recuperación de contraseña, magic link, etc.)
+  (function() {
+    const hash = window.location.hash;
+    if (hash && (hash.includes('access_token') || hash.includes('type=recovery') || hash.includes('type=signup'))) {
+      window.location.replace('/app/' + hash);
+    }
+  })();
+
   function toggleFaq(el) { el.classList.toggle('open'); }
 
   const observer = new IntersectionObserver((entries) => {
