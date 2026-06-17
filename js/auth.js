@@ -294,62 +294,21 @@ const Auth = {
       const { data: signUpData, error: signUpError } = await sb.auth.signUp({ email, password: pass });
       if (signUpError) throw signUpError;
 
-      const uid       = signUpData.user.id;
-      const trialEnds = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const uid = signUpData.user.id;
 
-      // 2. Crear negocio principal
-      const { data: mainBiz, error: bizError } = await sb.from('businesses').insert({
-        name:              bizName,
-        owner_name:        name,
-        owner_uid:         uid,
-        email, phone,
-        numero:            1,
-        tipo_negocio:      tipoNegocio,
-        active:            true,
-        plan:              'trial',
-        plan_solicitado:   plan,
-        cantidad_negocios: cantBiz,
-        trial_ends:        trialEnds
-      }).select().single();
-      if (bizError) throw bizError;
-
-      const bizIds = [mainBiz.id];
-
-      // 3. Crear negocios adicionales (multi)
-      if (isMulti && cantBiz > 1) {
-        const extraBizRows = [];
-        for (let i = 2; i <= cantBiz; i++) {
-          extraBizRows.push({
-            name:              `${bizName} — Local ${i}`,
-            owner_name:        name,
-            owner_uid:         uid,
-            email, phone,
-            numero:            i,
-            tipo_negocio:      tipoNegocio,
-            active:            true,
-            plan:              'trial',
-            plan_solicitado:   plan,
-            cantidad_negocios: cantBiz,
-            trial_ends:        trialEnds
-          });
-        }
-        const { data: extraBizData, error: extraBizError } = await sb
-          .from('businesses').insert(extraBizRows).select('id');
-        if (extraBizError) throw extraBizError;
-        extraBizData.forEach(b => bizIds.push(b.id));
-      }
-
-      // 4. Crear perfil (el trigger puede haber creado uno vacío, usamos upsert)
-      const { error: profileError } = await sb.from('profiles').upsert({
-        id:                uid,
-        business_id:       mainBiz.id,
-        business_ids:      bizIds,
-        name, email, phone,
-        role:              'owner',
-        plan,
-        cantidad_negocios: cantBiz
+      // 2. Usar RPC con SECURITY DEFINER para evitar problemas de RLS
+      // La función corre con privilegios de servidor, sin depender de la sesión JWT
+      const { error: rpcError } = await sb.rpc('crear_negocio_registro', {
+        p_uid:           uid,
+        p_biz_name:      bizName,
+        p_owner_name:    name,
+        p_email:         email,
+        p_phone:         phone || '',
+        p_tipo_negocio:  tipoNegocio,
+        p_plan:          plan,
+        p_cant_negocios: cantBiz
       });
-      if (profileError) throw profileError;
+      if (rpcError) throw rpcError;
 
       sessionStorage.setItem('ps_plan_solicitado', plan);
       sessionStorage.setItem('ps_is_new_user', '1');
