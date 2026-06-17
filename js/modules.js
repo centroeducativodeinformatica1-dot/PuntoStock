@@ -10,8 +10,10 @@ const Historial = {
     page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando historial...</div>`;
 
     try {
-      const snap = await db.collection('businesses').doc(PS.businessId)
-        .collection('ventas').orderBy('fecha', 'desc').limit(200).get();
+      const { data: _ventas, error: _ve } = await sb.from('ventas').select('*')
+        .eq('business_id', PS.businessId).order('fecha', { ascending: false }).limit(200);
+      if (_ve) throw _ve;
+      const snap = { docs: (_ventas||[]).map(d => ({id:d.id, data:()=>d})) };
       this.ventas = [];
       snap.forEach(d => this.ventas.push({ id: d.id, ...d.data() }));
       this.render(page);
@@ -197,8 +199,9 @@ const Clientes = {
     page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando clientes...</div>`;
 
     try {
-      const snap = await db.collection('businesses').doc(PS.businessId)
-        .collection('clientes').orderBy('nombre').get();
+      const { data: _clientes } = await sb.from('clientes').select('*')
+        .eq('business_id', PS.businessId).order('nombre');
+      const snap = { docs: (_clientes||[]).map(d => ({id:d.id, data:()=>d})) };
       this.lista = [];
       snap.forEach(d => this.lista.push({ id: d.id, ...d.data() }));
       this.render(page);
@@ -357,17 +360,17 @@ const Clientes = {
       cuit:     document.getElementById('cli-cuit').value.trim(),
       saldoCC:  parseFloat(document.getElementById('cli-saldo').value) || 0,
       notas:    document.getElementById('cli-notas').value.trim(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      updatedAt: new Date().toISOString()
     };
 
     try {
-      const col = db.collection('businesses').doc(PS.businessId).collection('clientes');
       if (id) {
         await col.doc(id).update(data);
         showToast('Cliente actualizado', 'success');
       } else {
-        data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        await col.add(data);
+        data.business_id = PS.businessId;
+        data.created_at = new Date().toISOString();
+        await sb.from('clientes').insert(data);
         showToast('Cliente creado', 'success');
       }
       closeModal();
@@ -380,7 +383,7 @@ const Clientes = {
   eliminar(id, nombre) {
     confirmDialog(`¿Eliminar al cliente <strong>${nombre}</strong>?`, async () => {
       try {
-        await db.collection('businesses').doc(PS.businessId).collection('clientes').doc(id).delete();
+        await sb.from('clientes').delete().eq('id', id);
         showToast('Cliente eliminado', 'success');
         await this.load();
       } catch (e) { showToast('Error: ' + e.message, 'error'); }
@@ -400,8 +403,9 @@ const Proveedores = {
     page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando...</div>`;
 
     try {
-      const snap = await db.collection('businesses').doc(PS.businessId)
-        .collection('proveedores').orderBy('nombre').get();
+      const { data: _provs } = await sb.from('proveedores').select('*')
+        .eq('business_id', PS.businessId).order('nombre');
+      const snap = { docs: (_provs||[]).map(d => ({id:d.id, data:()=>d})) };
       this.lista = [];
       snap.forEach(d => this.lista.push({ id: d.id, ...d.data() }));
       this.render(page);
@@ -533,17 +537,17 @@ const Proveedores = {
       contacto: document.getElementById('prov-contacto').value.trim(),
       productos:document.getElementById('prov-prods').value.trim(),
       notas:    document.getElementById('prov-notas').value.trim(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      updatedAt: new Date().toISOString()
     };
 
     try {
-      const col = db.collection('businesses').doc(PS.businessId).collection('proveedores');
       if (id) {
         await col.doc(id).update(data);
         showToast('Proveedor actualizado', 'success');
       } else {
-        data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        await col.add(data);
+        data.business_id = PS.businessId;
+        data.created_at = new Date().toISOString();
+        await sb.from('clientes').insert(data);
         showToast('Proveedor creado', 'success');
       }
       closeModal();
@@ -556,7 +560,7 @@ const Proveedores = {
   eliminar(id, nombre) {
     confirmDialog(`¿Eliminar al proveedor <strong>${nombre}</strong>?`, async () => {
       try {
-        await db.collection('businesses').doc(PS.businessId).collection('proveedores').doc(id).delete();
+        await sb.from('proveedores').delete().eq('id', id);
         showToast('Proveedor eliminado', 'success');
         await this.load();
       } catch (e) { showToast('Error: ' + e.message, 'error'); }
@@ -576,8 +580,9 @@ const Caja = {
       const biz = PS.businessId;
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const snap = await db.collection('businesses').doc(biz).collection('ventas')
-        .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(todayStart)).get();
+      const { data: _vhoy } = await sb.from('ventas').select('total,metodo_pago,items')
+        .eq('business_id', biz).gte('fecha', todayStart.toISOString());
+      const snap = { docs: (_vhoy||[]).map(d => ({id:d.id, data:()=>d})) };
 
       let totEfectivo=0, totTarjeta=0, totTransf=0, totCC=0, totPYE=0, totPYD=0, totGeneral=0, cantVentas=0;
       const ventas = [];
@@ -947,15 +952,15 @@ const Caja = {
 
     try {
       const promises = [];
-      if (cfOn) promises.push(db.collection('businesses').doc(biz).collection('caja_fuerte').add({
+      if (cfOn) promises.push(sb.from('caja_fuerte').insert({business_id: biz,
         tipo: this._tipoActual, monto: signo*mc, montoAbs: mc,
         descripcion: desc, usuario, fechaHora,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        timestamp: new Date().toISOString()
       }));
-      if (crOn) promises.push(db.collection('businesses').doc(biz).collection('caja_registradora').add({
+      if (crOn) promises.push(sb.from('caja_registradora').insert({business_id: biz,
         tipo: this._tipoActual, monto: signo*mr, montoAbs: mr,
         descripcion: desc, usuario, fechaHora,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        timestamp: new Date().toISOString()
       }));
       await Promise.all(promises);
       this.closeMovModal();
@@ -994,9 +999,9 @@ const Caja = {
 
     try {
       const [snapCF, snapCR] = await Promise.all([
-        db.collection('businesses').doc(biz).collection('caja_fuerte')
+        sb.from('caja_fuerte').select('*').eq('business_id',biz).order('timestamp').limit(500).then(r=>({docs:(r.data||[]).map(d=>({id:d.id,data:()=>d}))}))//
           .orderBy('timestamp','desc').limit(50).get(),
-        db.collection('businesses').doc(biz).collection('caja_registradora')
+        sb.from('caja_registradora').select('*').eq('business_id',biz).order('timestamp').limit(500).then(r=>({docs:(r.data||[]).map(d=>({id:d.id,data:()=>d}))}))//
           .orderBy('timestamp','desc').limit(50).get(),
       ]);
 
@@ -1070,8 +1075,8 @@ const Caja = {
   async imprimirHistorico() {
     const biz = PS.businessId;
     const [snapCF, snapCR] = await Promise.all([
-      db.collection('businesses').doc(biz).collection('caja_fuerte').orderBy('timestamp','asc').limit(500).get(),
-      db.collection('businesses').doc(biz).collection('caja_registradora').orderBy('timestamp','asc').limit(500).get(),
+      sb.from('caja_fuerte').select('*').eq('business_id',biz).order('timestamp').limit(500),
+      sb.from('caja_registradora').select('*').eq('business_id',biz).order('timestamp').limit(500),
     ]);
     const movs = [
       ...snapCF.docs.map(d=>({...d.data(),_src:'CF'})),
@@ -1115,8 +1120,9 @@ const Caja = {
     const notas = document.getElementById('caja-notas').value.trim();
     const diferencia = efectivoReal - totalEfectivoSistema;
     try {
-      await db.collection('businesses').doc(PS.businessId).collection('cierres').add({
-        fecha: firebase.firestore.FieldValue.serverTimestamp(),
+      await sb.from('cierres').insert({
+        business_id: PS.businessId,
+        fecha: new Date().toISOString(),
         totalGeneral, totalEfectivoSistema, efectivoReal, diferencia, notas, usuario: PS.user.uid
       });
       showToast('Cierre registrado. Diferencia: '+formatPrice(diferencia), diferencia>=0?'success':'warning');
@@ -1168,7 +1174,8 @@ const Admin = {
     page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando negocios...</div>`;
 
     try {
-      const snap = await db.collection('businesses').orderBy('createdAt', 'desc').get();
+      const { data: _bizs } = await sb.from('businesses').select('*').order('created_at', { ascending: false });
+      const snap = { docs: (_bizs||[]).map(d => ({id:d.id, data:()=>d})) };
       const negocios = [];
       snap.forEach(d => negocios.push({ id: d.id, ...d.data() }));
 
@@ -1382,7 +1389,7 @@ const Admin = {
   // ── Acciones ─────────────────────────────────────────────
   async toggleActive(id, active, nombre) {
     try {
-      await db.collection('businesses').doc(id).update({ active });
+      await sb.from('businesses').update({ active }).eq('id', id);
       showToast(`${nombre}: ${active ? 'Activado' : 'Desactivado'}`, active ? 'success' : 'warning');
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   },
@@ -1480,7 +1487,7 @@ const Admin = {
 
   async cambiarRubro(id, tipoNegocio) {
     try {
-      await db.collection('businesses').doc(id).update({ tipoNegocio });
+      await sb.from('businesses').update({ tipo_negocio: tipoNegocio }).eq('id', id);
       const label = { kiosco:'Kiosco', ropa:'Ropa', comida:'Comida', verduleria:'Verdulería',
                       farmacia:'Farmacia', electronica:'Electrónica', ferreteria:'Ferretería', otro:'Otro' }[tipoNegocio] || 'Sin definir';
       showToast(`Rubro actualizado: ${label}`, 'success');
@@ -1489,7 +1496,7 @@ const Admin = {
 
   async cambiarPlan(id, plan) {
     try {
-      await db.collection('businesses').doc(id).update({ plan });
+      await sb.from('businesses').update({ plan }).eq('id', id);
       showToast('Plan actualizado a ' + this.planLabel(plan), 'success');
       // Recalcular fila
       setTimeout(() => Admin.load(), 500);
@@ -1498,7 +1505,7 @@ const Admin = {
 
   async cambiarPeriodo(id, periodo) {
     try {
-      await db.collection('businesses').doc(id).update({ periodo });
+      await sb.from('businesses').update({ periodo }).eq('id', id);
       showToast('Período actualizado', 'success');
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   },
@@ -1517,7 +1524,8 @@ const Admin = {
         });
       }
 
-      const snap = await db.collection('businesses').doc(bizId).collection('productos').get();
+      const { data: _ps } = await sb.from('productos').select('*').eq('business_id', bizId);
+      const snap = { docs: (_ps||[]).map(d => ({id:d.id, data:()=>d})) };
       const productos = [];
       snap.forEach(d => productos.push({ id: d.id, ...d.data() }));
 
@@ -1602,7 +1610,8 @@ const Admin = {
       if (!validos.length) { showToast('No se encontraron productos', 'error'); return; }
 
       // Cargar productos existentes para no duplicar
-      const existSnap = await db.collection('businesses').doc(bizId).collection('productos').get();
+      const { data: _existProds } = await sb.from('productos').select('nombre,codigo').eq('business_id', bizId);
+      const existSnap = { docs: (_existProds||[]).map(d => ({id:d.id, data:()=>d})) };
       const existentes = new Set();
       existSnap.forEach(d => {
         const data = d.data();
@@ -1656,8 +1665,7 @@ const Admin = {
     closeModal();
     showToast('Importando...', 'info');
 
-    const colRef = db.collection('businesses').doc(bizId).collection('productos');
-    const batch  = db.batch();
+    // Supabase: insert batch
     let count = 0;
 
     for (const r of validos) {
@@ -1680,8 +1688,8 @@ const Admin = {
         talle:       iT >= 0 ? r[iT]?.trim() || null : null,
         color:       iCol >= 0 ? r[iCol]?.trim() || null : null,
         activo:      true,
-        createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+        created_at:  new Date().toISOString(),
+        updated_at:  new Date().toISOString(),
       });
       count++;
       if (count % 499 === 0) await batch.commit();
@@ -1692,7 +1700,7 @@ const Admin = {
   },
   gestionarTrial(id, nombre) {
     // Calcular días restantes actuales
-    db.collection('businesses').doc(id).get().then(snap => {
+    sb.from('businesses').select('*').eq('id',id).single().then(({data:snap}) => {
       const data = snap.data();
       const trialEnd = data.trialEnds?.toDate ? data.trialEnds.toDate()
         : data.trialEnds ? new Date(data.trialEnds) : new Date();
@@ -1770,7 +1778,7 @@ const Admin = {
       const nueva = new Date();
       nueva.setHours(0,0,0,0);
       nueva.setDate(nueva.getDate() + dias);
-      await db.collection('businesses').doc(id).update({ trialEnds: nueva });
+      await sb.from('businesses').update({ trial_ends: nueva.toISOString() }).eq('id', id);
       showToast(`Trial actualizado — ${dias} días restantes`, 'success');
       closeModal();
       Admin.load();
@@ -1827,7 +1835,7 @@ const Admin = {
     try {
       const updates = { cantidadNegocios: cant };
       if (cant > 1) updates.plan = 'multi';
-      await db.collection('businesses').doc(id).update(updates);
+      await sb.from('businesses').update(updates).eq('id', id);
       showToast('Cantidad de negocios actualizada', 'success');
       closeModal();
       Admin.load();
@@ -1856,7 +1864,8 @@ const Empleadas = {
       const semanaLabel = this._getSemanaLabel(semanaKey);
 
       // Cargar empleadas
-      const snap = await db.collection('businesses').doc(biz).collection('empleadas').get();
+      const { data: _emps } = await sb.from('empleadas').select('*').eq('business_id', biz);
+      const snap = { docs: (_emps||[]).map(d => ({id:d.id, data:()=>d})) };
       const empleadas = snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.activa!==false);
 
       // Guardar mapa de consumos para tickets
@@ -1865,16 +1874,15 @@ const Empleadas = {
       // Cargar consumos/anticipos de cada empleada en paralelo
       const cards = await Promise.all(empleadas.map(async emp => {
         // Verificar si ya fue liquidada esta semana
-        const cierreSnap = await db.collection('businesses').doc(biz)
-          .collection('empleadas').doc(emp.id).collection('cierres')
+        const cierreSnap = await sb.from('empleada_cierres').select('*').eq('business_id',biz).eq('empleada_id',emp.id)
           .where('semana','==',semanaKey).get();
         if (!cierreSnap.empty) {
           return { emp, totalConsumo:0, totalAnticipo:0, consumos:[], yaLiquidada:true };
         }
         const [cSnap, aSnap] = await Promise.all([
-          db.collection('businesses').doc(biz).collection('empleadas').doc(emp.id).collection('consumos')
+          sb.from('empleada_consumos').select('*').eq('business_id',biz).eq('empleada_id',emp.id)
             .where('semana','==',semanaKey).get(),
-          db.collection('businesses').doc(biz).collection('empleadas').doc(emp.id).collection('anticipos')
+          sb.from('empleada_anticipos').select('*').eq('business_id',biz).eq('empleada_id',emp.id)
             .where('semana','==',semanaKey).get(),
         ]);
         const consumos  = cSnap.docs.map(d=>({id:d.id,...d.data()}))
@@ -1891,12 +1899,11 @@ const Empleadas = {
       }));
 
       // Cargar historial de liquidaciones
-      const histSnap = await db.collection('businesses').doc(biz)
-        .collection('empleadas').get();
+      const { data: _histEmps } = await sb.from('empleadas').select('*').eq('business_id',biz);
+      const histSnap = { docs: (_histEmps||[]).map(d => ({id:d.id, data:()=>d})) };
       let histCierres = [];
       await Promise.all(histSnap.docs.map(async d => {
-        const cs = await db.collection('businesses').doc(biz)
-          .collection('empleadas').doc(d.id).collection('cierres')
+        const cs = await sb.from('empleada_cierres').select('*').eq('business_id',biz).eq('empleada_id',d.id)
           .orderBy('cerradoEn','desc').limit(10).get();
         cs.docs.forEach(c => histCierres.push({ empNombre: d.data().nombre, ...c.data() }));
       }));
@@ -2191,9 +2198,9 @@ const Empleadas = {
     const msg    = document.getElementById('ps-registrar-msg');
     if (!nombre) { msg.textContent = 'El nombre es obligatorio'; return; }
     try {
-      await db.collection('businesses').doc(PS.businessId).collection('empleadas').add({
+      await sb.from('empleadas').insert({business_id: PS.businessId,
         nombre, telefono: tel, activa: true,
-        creadaEn: firebase.firestore.FieldValue.serverTimestamp()
+        creada_en: new Date().toISOString()
       });
       document.getElementById('ps-modal-registrar').style.display = 'none';
       showToast('Empleada registrada: '+nombre, 'success');
@@ -2219,11 +2226,10 @@ const Empleadas = {
     if (monto <= 0) { msg.textContent = 'Ingresá un monto válido'; return; }
     try {
       const semanaKey = this._getSemanaKey();
-      await db.collection('businesses').doc(PS.businessId)
-        .collection('empleadas').doc(this._anticEmpId).collection('anticipos').add({
+      await sb.from('empleada_anticipos').insert({business_id: PS.businessId, empleada_id: this._anticEmpId,
           monto, descripcion: desc||'Anticipo',
           semana: semanaKey, semanaLabel: this._getSemanaLabel(semanaKey),
-          fecha: firebase.firestore.FieldValue.serverTimestamp(),
+          fecha: new Date().toISOString(),
           fechaLabel: new Date().toLocaleString('es-AR')
         });
       document.getElementById('ps-modal-anticipo').style.display = 'none';
@@ -2263,12 +2269,11 @@ const Empleadas = {
     const sueldoNeto = Math.max(0, sueldo - descuento);
     const semanaKey  = this._getSemanaKey();
     try {
-      await db.collection('businesses').doc(PS.businessId)
-        .collection('empleadas').doc(this._liquidEmpId).collection('cierres').add({
+      await sb.from('empleada_cierres').insert({business_id: PS.businessId, empleada_id: this._liquidEmpId,
           semana: semanaKey, semanaLabel: this._getSemanaLabel(semanaKey),
           totalConsumo: this._liquidConsumo, totalAnticipo: this._liquidAnticipo,
           totalDescuento: descuento, sueldoBruto: sueldo, sueldoNeto,
-          pagado: true, cerradoEn: firebase.firestore.FieldValue.serverTimestamp()
+          pagado: true, cerrado_en: new Date().toISOString()
         });
       document.getElementById('ps-modal-liquidar').style.display = 'none';
       showToast('Liquidación confirmada. Neto: '+formatPrice(sueldoNeto), 'success');
@@ -2447,10 +2452,10 @@ const Config = {
     if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
 
     try {
-      await db.collection('businesses').doc(PS.businessId).update({
+      await sb.from('businesses').update({
         name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro,
         modulo_empleadas: empMod,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        updated_at: new Date().toISOString()
       });
       PS.businessData = { ...PS.businessData, name: nombre, email, phone: tel, direccion: dir, tipoNegocio: rubro, modulo_empleadas: empMod };
       // Ocultar/mostrar nav empleadas según módulo

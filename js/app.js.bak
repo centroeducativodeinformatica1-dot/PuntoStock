@@ -1,5 +1,5 @@
 // ============================================================
-// PUNTOSTOCK — Core App v3 (Supabase)
+// PUNTOSTOCK — Core App v2
 // ============================================================
 
 const PS = {
@@ -14,19 +14,19 @@ const PS = {
 
   // ── Init ──────────────────────────────────────────────────
   async init() {
+    // Aplicar tema guardado
     Theme.apply();
 
-    // Escuchar cambios de sesión
-    sb.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        this.user = session.user;
-        await this.loadUserData(session.user.id);
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        this.user = user;
+        await this.loadUserData(user.uid);
         this.showApp();
       } else {
-        this.user        = null;
-        this.businessId  = null;
+        this.user = null;
+        this.businessId = null;
         this.businessData = null;
-        this.isAdmin     = false;
+        this.isAdmin = false;
         this.showAuth('login');
       }
     });
@@ -34,62 +34,54 @@ const PS = {
 
   async loadUserData(uid) {
     try {
-      // Cargar perfil
-      const { data: profile, error: pe } = await sb
-        .from('profiles')
-        .select('*')
-        .eq('id', uid)
-        .single();
+      const userDoc = await db.collection('users').doc(uid).get();
+      if (!userDoc.exists) { this.showAuth('login'); return; }
 
-      if (pe || !profile) { this.showAuth('login'); return; }
-
-      this.businessId  = profile.business_id;
-      this.businessIds = profile.business_ids?.length ? profile.business_ids : [profile.business_id];
-      this.isAdmin     = profile.role === 'admin';
+      const userData = userDoc.data();
+      this.businessId  = userData.businessId;
+      this.businessIds = userData.businessIds || [userData.businessId];
+      this.isAdmin     = userData.role === 'admin';
       this.userUid     = uid;
 
-      // Cargar negocio activo
-      const { data: biz } = await sb
-        .from('businesses')
-        .select('*')
-        .eq('id', this.businessId)
-        .single();
+      const bizDoc = await db.collection('businesses').doc(this.businessId).get();
+      if (bizDoc.exists) {
+        this.businessData = bizDoc.data();
 
-      if (biz) {
-        this.businessData = biz;
-
-        if (!biz.active && !this.isAdmin) {
-          await sb.auth.signOut();
+        if (!this.businessData.active && !this.isAdmin) {
+          auth.signOut();
           showToast('Tu cuenta está desactivada. Contactá al administrador.', 'error');
           return;
         }
 
         // Verificar trial
         if (!this.isAdmin) {
-          const plan      = biz.plan || 'trial';
-          const trialEnds = biz.trial_ends ? new Date(biz.trial_ends) : null;
-          const now       = new Date();
+          const plan = this.businessData.plan || 'trial';
+          const trialEnds = this.businessData.trialEnds?.toDate
+            ? this.businessData.trialEnds.toDate()
+            : this.businessData.trialEnds ? new Date(this.businessData.trialEnds) : null;
+          const now = new Date();
 
           if (plan === 'trial' && trialEnds && now > trialEnds) {
             this.trialExpired = true;
           } else if (plan === 'trial' && trialEnds) {
             this.trialDaysLeft = Math.ceil((trialEnds - now) / (1000*60*60*24));
-            this.trialExpired  = false;
+            this.trialExpired = false;
           } else {
-            this.trialExpired  = false;
+            this.trialExpired = false;
             this.trialDaysLeft = null;
           }
         }
 
-        // Cargar todos los negocios (multi)
+        // Cargar todos los negocios del usuario (para multi)
         if (this.businessIds.length > 1) {
-          const { data: allBiz } = await sb
-            .from('businesses')
-            .select('*')
-            .in('id', this.businessIds);
-          this.allBusinesses = allBiz || [];
+          const snaps = await Promise.all(
+            this.businessIds.map(id => db.collection('businesses').doc(id).get())
+          );
+          this.allBusinesses = snaps
+            .filter(s => s.exists)
+            .map(s => ({ id: s.id, ...s.data() }));
         } else {
-          this.allBusinesses = [{ ...biz }];
+          this.allBusinesses = [{ id: this.businessId, ...this.businessData }];
         }
       }
     } catch (e) {
@@ -151,17 +143,24 @@ const PS = {
     this.updateTopbarUser();
     this.navigate('dashboard');
 
+    // Banner de aviso trial
     if (this.trialDaysLeft !== null && this.trialDaysLeft <= 7) {
       setTimeout(() => this.showTrialBanner(), 800);
     }
 
+    // Popup WhatsApp para usuarios no admin (siempre al entrar, no solo nuevos)
     if (!this.isAdmin) {
       setTimeout(() => Auth.showUpgradePopup({
         businessName: this.businessData?.name || '',
         email: this.user?.email || '',
-        plan: this.businessData?.plan_solicitado || this.businessData?.plan || 'trial',
-        cantBiz: this.businessData?.cantidad_negocios || 1
+        plan: this.businessData?.planSolicitado || this.businessData?.plan || 'trial',
+        cantBiz: this.businessData?.cantidadNegocios || 1
       }), 1200);
+    }
+
+    // Tidio solo para usuarios con plan trial
+    if (!this.isAdmin && (this.businessData?.plan === 'trial' || !this.businessData?.plan)) {
+      // Chat widget se carga desde el HTML
     }
   },
 
@@ -170,6 +169,8 @@ const PS = {
       <div style="min-height:100vh; display:flex; align-items:center; justify-content:center;
                   background:var(--bg-primary); padding:24px;">
         <div style="max-width:460px; width:100%; text-align:center;">
+
+          <!-- Ícono -->
           <div style="width:80px; height:80px; background:rgba(248,81,73,0.1);
                       border:2px solid rgba(248,81,73,0.3); border-radius:50%;
                       display:flex; align-items:center; justify-content:center; margin:0 auto 24px;">
@@ -179,6 +180,7 @@ const PS = {
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
           </div>
+
           <div style="font-size:11px; font-weight:700; color:var(--red); letter-spacing:2px;
                       text-transform:uppercase; margin-bottom:12px;">Plan Trial Expirado</div>
           <h2 style="font-size:28px; font-weight:800; margin-bottom:12px; line-height:1.2;">
@@ -188,15 +190,19 @@ const PS = {
             Tu negocio <strong style="color:var(--text-primary);">${this.businessData?.name || ''}</strong>
             ya no tiene acceso al sistema. Contactanos por WhatsApp para activar tu plan.
           </p>
-          ${this.businessData?.plan_solicitado && this.businessData.plan_solicitado !== 'trial' ? `
+
+          <!-- Plan solicitado -->
+          ${this.businessData?.planSolicitado && this.businessData.planSolicitado !== 'trial' ? `
             <div style="background:var(--bg-card); border:1px solid var(--border);
                         border-radius:var(--radius-lg); padding:14px 18px; margin-bottom:20px; text-align:left;">
               <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">Plan solicitado al registrarse</div>
               <div style="font-weight:700; font-size:14px;">
-                ${{trial:'Trial',pro_mensual:'Pro Mensual — $20.000/mes',pro_anual:'Pro Anual — $200.000',multi:'Multi-negocio'}[this.businessData.plan_solicitado] || this.businessData.plan_solicitado}
+                ${{trial:'Trial',pro_mensual:'Pro Mensual — $20.000/mes',pro_anual:'Pro Anual — $200.000',multi:'Multi-negocio'}[this.businessData.planSolicitado] || this.businessData.planSolicitado}
               </div>
             </div>
           ` : ''}
+
+          <!-- Botón WhatsApp -->
           <a href="https://wa.me/5493624897927?text=Hola%2C%20quiero%20activar%20mi%20plan%20en%20PuntoStock.%20Mi%20negocio%20es%3A%20${encodeURIComponent(this.businessData?.name||'')}"
              target="_blank"
              style="display:flex; align-items:center; justify-content:center; gap:12px;
@@ -206,9 +212,15 @@ const PS = {
                     box-shadow:0 4px 20px rgba(37,211,102,0.35); transition:all 0.2s;"
              onmouseenter="this.style.background='#20bd5a'"
              onmouseleave="this.style.background='#25D366'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
+            </svg>
             Activar mi plan por WhatsApp
           </a>
-          <div style="font-size:12px; color:var(--text-muted); margin-bottom:20px;">+54 362 489-7927</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:20px;">
+            +54 362 489-7927
+          </div>
+
           <button onclick="Auth.logout()"
             style="background:none; border:1px solid var(--border); color:var(--text-secondary);
                    padding:10px 24px; border-radius:var(--radius-md); cursor:pointer;
@@ -235,6 +247,11 @@ const PS = {
       border-bottom:1px solid rgba(255,255,255,0.15);
     `;
     banner.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
       <span>
         ${urgente
           ? `<strong>¡Atención!</strong> Tu plan trial vence ${dias === 0 ? 'hoy' : dias === 1 ? 'mañana' : 'en ' + dias + ' días'}.`
@@ -246,6 +263,9 @@ const PS = {
          style="display:inline-flex; align-items:center; gap:6px; background:white;
                 color:#0D1117; text-decoration:none; padding:5px 14px; border-radius:6px;
                 font-size:12px; font-weight:700; white-space:nowrap;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
+        </svg>
         Mejorar plan
       </a>
       <button onclick="document.getElementById('trial-banner').remove(); document.getElementById('main-content').style.paddingTop=''"
@@ -279,6 +299,7 @@ const PS = {
       }
     }
 
+    // Selector de negocio (solo si tiene más de uno)
     const switcherEl = document.getElementById('sidebar-biz-switcher');
     if (switcherEl) {
       const negocios = this.allBusinesses || [];
@@ -321,6 +342,7 @@ const PS = {
     const adminNav = document.getElementById('admin-nav-item');
     if (adminNav) adminNav.style.display = this.isAdmin ? 'flex' : 'none';
 
+    // Agregar nav item de empleadas si no existe
     if (!document.getElementById('empleadas-nav-item')) {
       const cajaNav = document.querySelector('[data-page="caja"]');
       if (cajaNav) {
@@ -343,9 +365,11 @@ const PS = {
         cajaNav.parentNode.insertBefore(empNav, cajaNav.nextSibling);
       }
     }
+    // Mostrar/ocultar según módulo
     const empNavEl = document.getElementById('empleadas-nav-item');
     if (empNavEl) empNavEl.style.display = this.businessData?.modulo_empleadas ? 'flex' : 'none';
 
+    // Agregar page-empleadas si no existe
     if (!document.getElementById('page-empleadas')) {
       const mainContent = document.getElementById('main-content') || document.querySelector('.pages-container');
       if (mainContent) {
@@ -357,19 +381,23 @@ const PS = {
     }
   },
 
+  // Cambiar al negocio activo
   async cambiarNegocio(bizId) {
     if (bizId === this.businessId) return;
-    try {
-      await sb.from('profiles').update({ business_id: bizId }).eq('id', this.userUid);
 
-      const { data: biz } = await sb.from('businesses').select('*').eq('id', bizId).single();
-      if (biz) {
+    try {
+      // Actualizar en Firestore
+      await db.collection('users').doc(this.userUid).update({ businessId: bizId });
+
+      // Cargar datos del nuevo negocio
+      const bizDoc = await db.collection('businesses').doc(bizId).get();
+      if (bizDoc.exists) {
         this.businessId   = bizId;
-        this.businessData = biz;
+        this.businessData = bizDoc.data();
         this.renderSidebar();
         this.updateTopbarUser();
         this.navigate('dashboard');
-        showToast(`Cambiaste a: ${biz.name}`, 'success');
+        showToast(`Cambiaste a: ${this.businessData.name}`, 'success');
       }
     } catch (e) {
       showToast('Error al cambiar de negocio: ' + e.message, 'error');
@@ -409,36 +437,46 @@ const Theme = {
   },
 
   updateLogos(theme) {
+    // Determinar si estamos en /app/ o en la raíz
     const isApp = window.location.pathname.includes('/app');
     const base  = isApp ? '../' : '';
-    const src   = theme === 'light' ? `${base}logo-light.png` : `${base}logo-dark.png`;
-    document.querySelectorAll('.ps-logo').forEach(img => { img.src = src; });
+    const src   = theme === 'light'
+      ? `${base}logo-light.png`
+      : `${base}logo-dark.png`;
+
+    document.querySelectorAll('.ps-logo').forEach(img => {
+      img.src = src;
+    });
   },
 
-  toggle() { this.apply(this.current === 'dark' ? 'light' : 'dark'); },
+  toggle() {
+    this.apply(this.current === 'dark' ? 'light' : 'dark');
+  },
 
   updateIcon() {
     const btn = document.getElementById('theme-toggle-btn');
     if (!btn) return;
     if (this.current === 'dark') {
-      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-      </svg>`;
+      btn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>`;
       btn.title = 'Cambiar a tema claro';
     } else {
-      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-      </svg>`;
+      btn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>`;
       btn.title = 'Cambiar a tema oscuro';
     }
   }
 };
 
-// ── Toast ─────────────────────────────────────────────────────
+// ── Toast con íconos SVG ──────────────────────────────────────
 function showToast(msg, type = 'success', duration = 3500) {
   const svgs = {
     success: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`,
@@ -468,28 +506,34 @@ function openModal(html, size = '') {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
   document.body.appendChild(overlay);
 }
-function closeModal() { const m = document.getElementById('active-modal'); if (m) m.remove(); }
+
+function closeModal() {
+  const m = document.getElementById('active-modal');
+  if (m) m.remove();
+}
 
 // ── Formatters ────────────────────────────────────────────────
 function formatPrice(n) { return '$' + Number(n || 0).toLocaleString('es-AR'); }
 
 function formatDate(ts) {
   if (!ts) return '-';
-  const d = new Date(ts);
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
 function formatDateTime(ts) {
   if (!ts) return '-';
-  const d = new Date(ts);
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
 
 function formatDateInput(ts) {
   if (!ts) return '';
-  return new Date(ts).toISOString().split('T')[0];
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toISOString().split('T')[0];
 }
 
+// ── Confirm dialog ────────────────────────────────────────────
 function confirmDialog(msg, onConfirm) {
   openModal(`
     <div class="modal-header">
@@ -505,18 +549,29 @@ function confirmDialog(msg, onConfirm) {
   document.getElementById('confirm-btn').onclick = () => { closeModal(); onConfirm(); };
 }
 
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+// ── Sidebar mobile ────────────────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
 
-// ── Impresión térmica 58mm ────────────────────────────────────
+// ════════════════════════════════════════════════════
+//   IMPRESIÓN TÉRMICA 58mm
+// ════════════════════════════════════════════════════
+
 const CSS_58MM = `
   * { margin:0; padding:0; box-sizing:border-box; }
   @page { size: 58mm auto; margin: 0; }
-  body { font-family:'Courier New',Courier,monospace; font-size:11px; width:58mm; max-width:58mm; margin:0; padding:4px 6px; color:#000; }
-  .center { text-align:center; } .bold { font-weight:700; }
-  .sep { border:none; border-top:1px dashed #000; margin:4px 0; }
-  table { width:100%; border-collapse:collapse; font-size:10px; }
-  td, th { padding:1px 0; vertical-align:top; }
-  @media print { button { display:none !important; } }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px; width: 58mm; max-width: 58mm;
+    margin: 0; padding: 4px 6px; color: #000;
+  }
+  .center { text-align: center; }
+  .bold   { font-weight: 700; }
+  .sep    { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+  table   { width: 100%; border-collapse: collapse; font-size: 10px; }
+  td, th  { padding: 1px 0; vertical-align: top; }
+  @media print { button { display: none !important; } }
 `;
 
 function imprimirHTML(html) {

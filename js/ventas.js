@@ -28,10 +28,11 @@ const Ventas = {
     const page = document.getElementById('page-ventas');
     page.innerHTML = `<div class="page-loader"><div class="loader"></div> Cargando productos...</div>`;
     try {
-      const snap = await db.collection('businesses').doc(PS.businessId)
-        .collection('productos').where('activo', '==', true).get();
-      this.productos = [];
-      snap.forEach(d => this.productos.push({ id: d.id, ...d.data() }));
+      const { data: _prods, error: _pe } = await sb
+        .from('productos').select('*')
+        .eq('business_id', PS.businessId).eq('activo', true);
+      if (_pe) throw _pe;
+      this.productos = _prods || [];
       this.productosFiltrados = [...this.productos];
       this.cart = [];
       this.render(page);
@@ -1167,18 +1168,16 @@ const Ventas = {
     if (!precio || precio <= 0) { showToast('Ingresá un precio válido', 'warning'); return; }
 
     try {
-      const bizRef = db.collection('businesses').doc(PS.businessId);
-      const ref = await bizRef.collection('productos').add({
+      const { data: _newProd, error: _np } = await sb.from('productos').insert({
+        business_id: PS.businessId,
         nombre, precio, stock, activo: true,
-        codigoBarra: code,
-        categoria: cat || '',
-        unidad: 'unidad',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+        codigo: code, categoria: cat || '', unidad: 'unidad'
+      }).select().single();
+      if (_np) throw _np;
+      const ref = { id: _newProd.id };
 
       // Agregar al array local
-      const newProd = { id: ref.id, nombre, precio, stock, activo: true, codigoBarra: code, categoria: cat || '', unidad: 'unidad' };
+      const newProd = { ..._newProd };
       this.productos.push(newProd);
       this.productosFiltrados = [...this.productos];
       this.renderProductos();
@@ -1340,7 +1339,7 @@ const Ventas = {
       if (metodo === 'Consumo empleado') {
         const sel = document.getElementById('consumo-empleada-sel');
         if (sel && sel.options.length <= 1) {
-          db.collection('businesses').doc(PS.businessId).collection('empleadas').get()
+          sb.from('empleadas').select('*').eq('business_id', PS.businessId).then(r => ({ docs: (r.data||[]).map(d => ({id:d.id, data:()=>d})) }))
             .then(snap => {
               const empleadas = snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.activa!==false);
               sel.innerHTML = '<option value="">-- Elegir empleada --</option>'
@@ -1468,9 +1467,11 @@ const Ventas = {
     btn.innerHTML = '<span class="loader"></span> Procesando...';
 
     try {
-      const batch  = db.batch();
-      const bizRef = db.collection('businesses').doc(PS.businessId);
-      const ventaRef = bizRef.collection('ventas').doc();
+      // Supabase: guardar venta y descontar stock atomicamente
+      const _ventaPayload = {
+        business_id: PS.businessId
+      };
+      const _ventaRef = { id: null };  // placeholder, se llena abajo
 
       // Datos adicionales para consumo empleado
       let empId = null, empNombre = null;
@@ -1485,45 +1486,43 @@ const Ventas = {
         ? (parseFloat(document.getElementById('monto-recibido')?.value) || total) : null;
       const vuelto = montoRecibido ? Math.max(0, montoRecibido - total) : null;
 
-      batch.set(ventaRef, {
+      // Insertar venta
+      const { data: _ventaData, error: _ventaErr } = await sb.from('ventas').insert({
+        business_id: PS.businessId,
         items: this.cart.map(i => ({
           id: i.prodId || i.id, nombre: i.nombre,
           precio: i.precio, cantidad: i.cantidad, esPeso: i.esPeso || false
         })),
-        subtotal, descuento: descPct, total, metodoPago,
-        montoRecibido, vuelto,
-        ...(empId ? { empleadaId: empId, empleadaNombre: empNombre } : {}),
-        fecha: firebase.firestore.FieldValue.serverTimestamp(),
-        usuario: PS.user.uid
-      });
+        total, descuento: descPct, metodo_pago: metodoPago,
+        pagado_con: montoRecibido, vuelto,
+        ...(empId ? { empleada_id: empId } : {}),
+        fecha: new Date().toISOString()
+      }).select().single();
+      if (_ventaErr) throw _ventaErr;
+      _ventaRef.id = _ventaData.id;
 
-      // Descontar stock — los items de promo (_promo) descuentan del producto original
-      this.cart.filter(i => !i.esPeso).forEach(item => {
+      // Descontar stock usando RPC atómica
+      const stockUpdates = this.cart.filter(i => !i.esPeso).map(item => {
         const realId = item.esPromo ? item.id.replace('_promo', '') : item.id;
-        const ref = bizRef.collection('productos').doc(realId);
-        batch.update(ref, {
-          stock: firebase.firestore.FieldValue.increment(-item.cantidad)
-        });
+        return sb.rpc('decrementar_stock', { p_id: realId, p_cantidad: item.cantidad });
       });
-
-      await batch.commit();
+      await Promise.all(stockUpdates);
 
       // Registrar consumo en empleada si corresponde
       if (metodoPago === 'Consumo empleado' && empId) {
         const semanaKey = Empleadas?._getSemanaKey ? Empleadas._getSemanaKey() : new Date().toISOString().substring(0,10);
-        await db.collection('businesses').doc(PS.businessId)
-          .collection('empleadas').doc(empId).collection('consumos').add({
-            total, semana: semanaKey,
-            descripcion: this.cart.map(i=>i.nombre+' x'+i.cantidad).join(', '),
-            items: this.cart.map(i=>({ nombre: i.nombre, precio: i.precio, cantidad: i.cantidad })),
-            fecha: firebase.firestore.FieldValue.serverTimestamp(),
-            fechaLabel: new Date().toLocaleString('es-AR')
-          });
+        await sb.from('empleada_consumos').insert({
+          business_id: PS.businessId,
+          empleada_id: empId,
+          descripcion: this.cart.map(i=>i.nombre+' x'+i.cantidad).join(', '),
+          monto: total,
+          fecha: new Date().toISOString()
+        });
       }
 
       // Guardar última venta para imprimir ticket
       this._lastSale = {
-        saleId: ventaRef.id,
+        saleId: _ventaRef.id,
         items: this.cart.slice(),
         total, subtotal, descuento: descPct, metodoPago,
         montoRecibido, vuelto,
