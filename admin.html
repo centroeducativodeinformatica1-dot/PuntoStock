@@ -240,21 +240,21 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 let todosNegocios = [];
 
 // ── Auth ─────────────────────────────────────────────────────
+// Lista de emails admin (control local simple)
+const ADMIN_EMAILS = ['ericexequielbenitez@gmail.com'];
+
 async function doLogin() {
   const email = document.getElementById('a-email').value.trim();
   const pass  = document.getElementById('a-pass').value;
   if (!email || !pass) { showErr('Completá email y contraseña.'); return; }
 
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) { showErr('Email o contraseña incorrectos.'); return; }
-
-  // Verificar admin
-  const { data: prof } = await sb.from('profiles').select('role').eq('id', data.user.id).single();
-  if (!prof || prof.role !== 'admin') {
-    await sb.auth.signOut();
+  if (!ADMIN_EMAILS.includes(email.toLowerCase())) {
     showErr('No tenés permisos de administrador.');
     return;
   }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showErr('Email o contraseña incorrectos.'); return; }
 
   document.getElementById('admin-email').textContent = data.user.email;
   showScreen('app');
@@ -269,9 +269,9 @@ async function doLogout() {
 // Verificar si ya hay sesión activa al cargar
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { showScreen('auth'); return; }
-  const { data: prof } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
-  if (!prof || prof.role !== 'admin') { showScreen('auth'); return; }
+  if (!session || !ADMIN_EMAILS.includes(session.user.email.toLowerCase())) {
+    showScreen('auth'); return;
+  }
   document.getElementById('admin-email').textContent = session.user.email;
   showScreen('app');
   cargarNegocios();
