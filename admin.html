@@ -240,31 +240,42 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 let todosNegocios = [];
 
 // ── Auth ─────────────────────────────────────────────────────
-sb.auth.onAuthStateChange(async (event, session) => {
-  if (!session) { showScreen('auth'); return; }
-  // Verificar que sea admin
-  const { data: prof } = await sb.from('profiles').select('role,email').eq('id', session.user.id).single();
-  if (prof?.role !== 'admin') {
-    await sb.auth.signOut();
-    showErr('No tenés permisos de administrador.');
-    return;
-  }
-  document.getElementById('admin-email').textContent = session.user.email;
-  showScreen('app');
-  cargarNegocios();
-});
-
 async function doLogin() {
   const email = document.getElementById('a-email').value.trim();
   const pass  = document.getElementById('a-pass').value;
   if (!email || !pass) { showErr('Completá email y contraseña.'); return; }
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) showErr('Email o contraseña incorrectos.');
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showErr('Email o contraseña incorrectos.'); return; }
+
+  // Verificar admin
+  const { data: prof } = await sb.from('profiles').select('role').eq('id', data.user.id).single();
+  if (!prof || prof.role !== 'admin') {
+    await sb.auth.signOut();
+    showErr('No tenés permisos de administrador.');
+    return;
+  }
+
+  document.getElementById('admin-email').textContent = data.user.email;
+  showScreen('app');
+  cargarNegocios();
 }
 
 async function doLogout() {
   await sb.auth.signOut();
+  showScreen('auth');
 }
+
+// Verificar si ya hay sesión activa al cargar
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showScreen('auth'); return; }
+  const { data: prof } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+  if (!prof || prof.role !== 'admin') { showScreen('auth'); return; }
+  document.getElementById('admin-email').textContent = session.user.email;
+  showScreen('app');
+  cargarNegocios();
+})();
 
 function showErr(msg) {
   const el = document.getElementById('auth-err');
