@@ -294,23 +294,20 @@ async function cargarNegocios() {
   document.getElementById('tabla-container').innerHTML =
     '<div class="loader-wrap"><span class="spin"></span> Cargando negocios...</div>';
 
-  // Negocios
-  const { data: bizs } = await sbAdmin.from('businesses').select('*').order('created_at', { ascending: false });
-
-  // Contar productos y ventas por negocio
-  const ids = (bizs || []).map(b => b.id);
-  const [{ data: prods }, { data: ventas }] = await Promise.all([
-    sbAdmin.from('productos').select('business_id').in('business_id', ids),
-    sbAdmin.from('ventas').select('business_id,total').in('business_id', ids)
+  // Usar RPCs con security definer que bypasean RLS
+  const [{ data: bizs }, { data: prodsStats }, { data: ventasStats }] = await Promise.all([
+    sb.rpc('get_all_businesses'),
+    sb.rpc('get_all_productos_count'),
+    sb.rpc('get_all_ventas_stats')
   ]);
 
   const prodCount  = {};
   const ventaCount = {};
   const ventaTotal = {};
-  (prods  || []).forEach(p => { prodCount[p.business_id]  = (prodCount[p.business_id]  || 0) + 1; });
-  (ventas || []).forEach(v => {
-    ventaCount[v.business_id] = (ventaCount[v.business_id] || 0) + 1;
-    ventaTotal[v.business_id] = (ventaTotal[v.business_id] || 0) + (v.total || 0);
+  (prodsStats  || []).forEach(p => { prodCount[p.business_id]  = parseInt(p.cant) || 0; });
+  (ventasStats || []).forEach(v => {
+    ventaCount[v.business_id] = parseInt(v.cant)  || 0;
+    ventaTotal[v.business_id] = parseFloat(v.total) || 0;
   });
 
   todosNegocios = (bizs || []).map(b => ({
@@ -434,7 +431,7 @@ function renderTabla(lista) {
 async function toggleActivo(id, nuevoEstado, nombre) {
   const accion = nuevoEstado ? 'activar' : 'desactivar';
   if (!confirm(`¿Querés ${accion} el negocio "${nombre}"?`)) return;
-  const { error } = await sbAdmin.from('businesses').update({ active: nuevoEstado }).eq('id', id);
+  const { error } = await sb.rpc('admin_toggle_activo', { p_id: id, p_active: nuevoEstado });
   if (error) { toast('Error: ' + error.message, 'err'); return; }
   toast(`Negocio ${nuevoEstado ? 'activado' : 'desactivado'}`, 'ok');
   const b = todosNegocios.find(x => x.id === id);
@@ -471,7 +468,7 @@ function modalPlan(id, nombre, planActual) {
 
 async function confirmarPlan(id) {
   const plan = document.getElementById('m-plan').value;
-  const { error } = await sbAdmin.from('businesses').update({ plan }).eq('id', id);
+  const { error } = await sb.rpc('admin_set_plan', { p_id: id, p_plan: plan });
   if (error) { toast('Error: ' + error.message, 'err'); return; }
   toast('Plan actualizado a ' + plan, 'ok');
   const b = todosNegocios.find(x => x.id === id);
@@ -506,7 +503,7 @@ async function confirmarTrial(id, diasActuales) {
   const dias = parseInt(document.getElementById('m-dias').value) || 7;
   const base = Math.max(0, diasActuales);
   const nuevaFecha = new Date(Date.now() + (base + dias) * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await sbAdmin.from('businesses').update({ trial_ends: nuevaFecha }).eq('id', id);
+  const { error } = await sb.rpc('admin_set_trial', { p_id: id, p_trial_ends: nuevaFecha });
   if (error) { toast('Error: ' + error.message, 'err'); return; }
   toast(`Trial extendido ${dias} días más`, 'ok');
   const b = todosNegocios.find(x => x.id === id);
