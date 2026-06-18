@@ -532,11 +532,14 @@
 
 
 <script>
-  // Redirigir tokens de Supabase (recuperación de contraseña, magic link, etc.)
+  // Redirigir CUALQUIER token o error de Supabase a la app
   (function() {
     const hash = window.location.hash;
-    if (hash && (hash.includes('access_token') || hash.includes('type=recovery') || hash.includes('type=signup'))) {
+    const search = window.location.search;
+    if (hash && hash.length > 1) {
       window.location.replace('/app/' + hash);
+    } else if (search && (search.includes('access_token') || search.includes('type=recovery') || search.includes('error='))) {
+      window.location.replace('/app/#' + search.substring(1));
     }
   })();
 
