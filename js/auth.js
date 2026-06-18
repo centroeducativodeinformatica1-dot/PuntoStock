@@ -5,10 +5,48 @@
 const WA_NUMBER = '5493624897927';
 
 const PLANES = {
-  trial:      { id:'trial',      nombre:'Prueba gratuita',        precio_mensual:0,     precio_anual:null,   negocios:1,          descripcion:'7 días sin costo para que lo conozcas', color:'var(--text-secondary)', badge:'7 días gratis' },
-  pro_mensual:{ id:'pro_mensual',nombre:'Pro — 1 negocio',        precio_mensual:20000, precio_anual:null,   negocios:1,          descripcion:'Para un negocio, facturación mensual',  color:'var(--green-primary)',  badge:'Más elegido' },
-  pro_anual:  { id:'pro_anual',  nombre:'Pro — 1 negocio anual',  precio_mensual:null,  precio_anual:200000, negocios:1,          descripcion:'Para un negocio, pago anual único',      color:'var(--blue)',           badge:'Pago único' },
-  multi:      { id:'multi',      nombre:'Multi-negocio',           precio_mensual:null,  precio_anual:150000, negocios:'multiple', descripcion:'$15.000 por negocio/mes',                color:'var(--purple)',         badge:'$15.000 c/u/mes' }
+  trial: {
+    id:'trial', nombre:'Trial', precio_mensual:0, negocios:1,
+    descripcion:'14 días para conocer el sistema sin costo ni tarjeta.',
+    color:'var(--text-secondary)', badge:'14 días gratis',
+    features:['Hasta 100 productos','1 usuario dueño','API MP (QR simple)','Sin ticket ni dashboard'],
+    limite_productos: 100
+  },
+  medium: {
+    id:'medium', nombre:'Medium', precio_mensual:15000, negocios:1,
+    descripcion:'Para kioscos, almacenes y tiendas chicas.',
+    color:'var(--blue)', badge:'Más elegido',
+    features:['Hasta 1.000 productos','1 usuario dueño','API MP completa','Ticket básico','Dashboard básico','Reporte diario'],
+    limite_productos: 1000
+  },
+  high: {
+    id:'high', nombre:'High', precio_mensual:25000, negocios:1,
+    descripcion:'Para negocios medianos que necesitan control real.',
+    color:'var(--orange)', badge:'Control total',
+    features:['Hasta 3.000 productos','1 dueño + 1 empleado','API MP completa','Ticket avanzado','Dashboard por franja horaria','Control de caja','Reportes PDF / Excel'],
+    limite_productos: 3000
+  },
+  platinum: {
+    id:'platinum', nombre:'Platinum', precio_mensual:45000, negocios:1,
+    descripcion:'Para tiendas grandes con alto movimiento.',
+    color:'var(--purple)', badge:'Premium',
+    features:['Productos ilimitados','1 dueño + 3 cajeros','API MP + conciliación','Dashboard BI avanzado','Historial extendido','Exportaciones avanzadas','Soporte prioritario'],
+    limite_productos: null
+  },
+  gold: {
+    id:'gold', nombre:'Gold', precio_mensual:80000, precio_setup:300000, negocios:2,
+    descripcion:'Vendé online y en local con un solo sistema.',
+    color:'#F59E0B', badge:'Web + E-commerce',
+    features:['Todo Platinum incluido','Web estilo PedidosYa','Stock en tiempo real','Seguimiento de pedidos','Notificaciones al cliente','2 dueños + 4 cajeros','Hosting premium','API MP + conciliación automática'],
+    limite_productos: null
+  },
+  black: {
+    id:'black', nombre:'Black', precio_mensual:null, negocios:'ilimitados',
+    descripcion:'Para cadenas, franquicias y empresas grandes.',
+    color:'#64748B', badge:'Consultar por WhatsApp',
+    features:['Multi-sucursal','Usuarios ilimitados','API privada','Automatizaciones','WhatsApp Business API','Dashboard tipo Power BI','Integraciones personalizadas','Soporte dedicado'],
+    limite_productos: null
+  }
 };
 
 const Auth = {
@@ -61,69 +99,150 @@ const Auth = {
   planesHTML() {
     return `
       <div style="min-height:100vh; padding:40px 16px 60px; display:flex; flex-direction:column;
-                  align-items:center; justify-content:flex-start; gap:0; overflow-y:auto;">
+                  align-items:center; justify-content:flex-start; overflow-y:auto;">
+
         <div style="text-align:center; margin-bottom:40px; max-width:600px;">
-          <div style="margin-bottom:20px; text-align:center;">
+          <div style="margin-bottom:20px;">
             <img src="../logo-dark.png" class="ps-logo" alt="PuntoStock" style="height:44px; width:auto;">
           </div>
           <h1 style="font-size:clamp(24px,4vw,36px); font-weight:900; letter-spacing:-1px; margin-bottom:10px; line-height:1.1;">
             Elegí tu plan
           </h1>
           <p style="color:var(--text-secondary); font-size:15px;">
-            Todos los planes incluyen acceso completo al sistema. El admin activa tu cuenta manualmente.
+            Todos los planes incluyen API de Mercado Pago. El admin activa tu cuenta manualmente.
           </p>
         </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-                    gap:16px; max-width:960px; width:100%; padding:0 4px;">
+
+        <!-- Planes mensuales -->
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;
+                    letter-spacing:1px; margin-bottom:16px; align-self:flex-start; max-width:960px; width:100%; padding:0 4px;">
+          ⭐ Planes Mensuales
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+                    gap:14px; max-width:960px; width:100%; padding:0 4px; margin-bottom:28px;">
+
+          <!-- TRIAL -->
           <div class="plan-select-card" onclick="Auth.selectPlan('trial')" id="plan-trial">
-            <div class="plan-select-badge" style="background:rgba(139,92,246,0.15); color:var(--purple);">7 días gratis</div>
-            <div class="plan-select-name">Prueba gratuita</div>
-            <div class="plan-select-price"><span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">$0</span></div>
-            <div class="plan-select-desc">7 días para conocer el sistema sin costo ni tarjeta.</div>
-            <ul class="plan-select-features"><li>Punto de venta completo</li><li>Control de stock</li><li>Dashboard y reportes</li><li>1 negocio</li></ul>
-            <div class="plan-select-btn" style="border-color:var(--border);">Empezar prueba gratis</div>
-          </div>
-          <div class="plan-select-card featured" onclick="Auth.selectPlan('pro_mensual')" id="plan-pro_mensual">
-            <div class="plan-select-badge" style="background:var(--green-muted); color:var(--green-primary);">Más elegido</div>
-            <div class="plan-select-name">Pro · 1 negocio</div>
+            <div class="plan-select-badge" style="background:rgba(139,92,246,0.15); color:var(--purple);">14 días gratis</div>
+            <div class="plan-select-name">Trial</div>
             <div class="plan-select-price">
-              <span style="font-size:14px; font-weight:600; color:var(--text-secondary);">$</span>
-              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">20.000</span>
-              <span style="font-size:13px; color:var(--text-secondary);">/mes</span>
+              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">$0</span>
             </div>
-            <div class="plan-select-desc">Facturación mensual para un negocio.</div>
-            <ul class="plan-select-features"><li>Todo incluido</li><li>Sin límite de productos</li><li>Soporte prioritario</li><li>1 negocio</li></ul>
-            <div class="plan-select-btn" style="background:var(--green-primary); color:#0D1117; border-color:var(--green-primary);">Elegir plan mensual</div>
+            <div class="plan-select-desc">14 días para conocer el sistema sin costo ni tarjeta.</div>
+            <ul class="plan-select-features">
+              <li>Hasta 100 productos</li><li>1 usuario dueño</li>
+              <li>API MP (QR simple)</li><li>Sin ticket ni dashboard</li>
+            </ul>
+            <div class="plan-select-btn" style="border-color:var(--border);">Empezar gratis</div>
           </div>
-          <div class="plan-select-card" onclick="Auth.selectPlan('pro_anual')" id="plan-pro_anual">
-            <div class="plan-select-badge" style="background:rgba(88,166,255,0.12); color:var(--blue);">Pago único — 1 año</div>
-            <div class="plan-select-name">Pro · 1 negocio anual</div>
+
+          <!-- MEDIUM -->
+          <div class="plan-select-card" onclick="Auth.selectPlan('medium')" id="plan-medium">
+            <div class="plan-select-badge" style="background:rgba(88,166,255,0.12); color:var(--blue);">Más elegido</div>
+            <div class="plan-select-name">Medium</div>
             <div class="plan-select-price">
-              <span style="font-size:14px; font-weight:600; color:var(--text-secondary);">$</span>
-              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">200.000</span>
-              <span style="font-size:13px; color:var(--text-secondary);">pago único</span>
+              <span style="font-size:13px; color:var(--text-secondary);">$</span>
+              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">15.000</span>
+              <span style="font-size:12px; color:var(--text-secondary);">/mes</span>
             </div>
-            <div class="plan-select-desc">Un solo pago anual para un negocio.</div>
-            <ul class="plan-select-features"><li>Todo incluido</li><li>Sin límite de productos</li><li>Soporte prioritario</li><li>1 negocio</li></ul>
-            <div class="plan-select-btn" style="border-color:var(--blue); color:var(--blue);">Elegir plan anual</div>
+            <div class="plan-select-desc">Para kioscos, almacenes y tiendas chicas.</div>
+            <ul class="plan-select-features">
+              <li>Hasta 1.000 productos</li><li>1 usuario dueño</li>
+              <li>API MP completa</li><li>Ticket básico</li>
+              <li>Dashboard básico</li><li>Reporte diario</li>
+            </ul>
+            <div class="plan-select-btn" style="border-color:var(--blue); color:var(--blue);">Elegir Medium</div>
           </div>
-          <div class="plan-select-card" onclick="Auth.selectPlan('multi')" id="plan-multi">
-            <div class="plan-select-badge" style="background:rgba(139,92,246,0.12); color:var(--purple);">$15.000 c/u/mes</div>
-            <div class="plan-select-name">Multi-negocio</div>
+
+          <!-- HIGH -->
+          <div class="plan-select-card featured" onclick="Auth.selectPlan('high')" id="plan-high">
+            <div class="plan-select-badge" style="background:rgba(240,165,0,0.12); color:var(--orange);">Control total</div>
+            <div class="plan-select-name">High</div>
             <div class="plan-select-price">
-              <span style="font-size:14px; font-weight:600; color:var(--text-secondary);">$</span>
-              <span style="font-size:30px; font-weight:900; font-family:var(--font-mono);">15.000</span>
-              <span style="font-size:13px; color:var(--text-secondary);">/negocio/mes</span>
+              <span style="font-size:13px; color:var(--text-secondary);">$</span>
+              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">25.000</span>
+              <span style="font-size:12px; color:var(--text-secondary);">/mes</span>
             </div>
-            <div class="plan-select-desc">Más de un negocio · $15.000 por negocio por mes.</div>
-            <ul class="plan-select-features"><li>Múltiples negocios</li><li>Selector de negocio activo</li><li>Panel unificado</li><li>Todo incluido en Pro</li></ul>
-            <div class="plan-select-btn" style="border-color:var(--purple); color:var(--purple);">Elegir multi-negocio</div>
+            <div class="plan-select-desc">Para negocios medianos que necesitan control real.</div>
+            <ul class="plan-select-features">
+              <li>Hasta 3.000 productos</li><li>1 dueño + 1 empleado</li>
+              <li>API MP completa</li><li>Ticket avanzado</li>
+              <li>Dashboard por franja horaria</li><li>Reportes PDF / Excel</li>
+            </ul>
+            <div class="plan-select-btn" style="background:var(--orange); color:#0D1117; border-color:var(--orange);">Elegir High</div>
+          </div>
+
+          <!-- PLATINUM -->
+          <div class="plan-select-card" onclick="Auth.selectPlan('platinum')" id="plan-platinum">
+            <div class="plan-select-badge" style="background:rgba(139,92,246,0.12); color:var(--purple);">Premium</div>
+            <div class="plan-select-name">Platinum</div>
+            <div class="plan-select-price">
+              <span style="font-size:13px; color:var(--text-secondary);">$</span>
+              <span style="font-size:36px; font-weight:900; font-family:var(--font-mono);">45.000</span>
+              <span style="font-size:12px; color:var(--text-secondary);">/mes</span>
+            </div>
+            <div class="plan-select-desc">Para tiendas grandes con alto movimiento.</div>
+            <ul class="plan-select-features">
+              <li>Productos ilimitados</li><li>1 dueño + 3 cajeros</li>
+              <li>API MP + conciliación</li><li>Dashboard BI avanzado</li>
+              <li>Exportaciones avanzadas</li><li>Soporte prioritario</li>
+            </ul>
+            <div class="plan-select-btn" style="border-color:var(--purple); color:var(--purple);">Elegir Platinum</div>
           </div>
         </div>
-        <div style="margin-top:28px; text-align:center; max-width:500px;">
+
+        <!-- Planes con web -->
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;
+                    letter-spacing:1px; margin-bottom:16px; align-self:flex-start; max-width:960px; width:100%; padding:0 4px;">
+          ⭐ Planes con Web + E-commerce
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+                    gap:14px; max-width:960px; width:100%; padding:0 4px; margin-bottom:28px;">
+
+          <!-- GOLD -->
+          <div class="plan-select-card" onclick="Auth.selectPlan('gold')" id="plan-gold"
+               style="border-color:rgba(245,158,11,0.3);">
+            <div class="plan-select-badge" style="background:rgba(245,158,11,0.12); color:#F59E0B;">Web + E-commerce</div>
+            <div class="plan-select-name" style="color:#F59E0B;">Gold</div>
+            <div class="plan-select-price">
+              <span style="font-size:13px; color:var(--text-secondary);">$</span>
+              <span style="font-size:32px; font-weight:900; font-family:var(--font-mono);">80.000</span>
+              <span style="font-size:12px; color:var(--text-secondary);">/mes</span>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">+ $300.000 de setup inicial</div>
+            </div>
+            <div class="plan-select-desc">Todo Platinum + página web con catálogo y pedidos online.</div>
+            <ul class="plan-select-features">
+              <li>Todo Platinum incluido</li><li>Web estilo PedidosYa</li>
+              <li>Stock en tiempo real</li><li>Seguimiento de pedidos</li>
+              <li>2 dueños + 4 cajeros</li><li>Hosting premium incluido</li>
+            </ul>
+            <div class="plan-select-btn" style="background:#F59E0B; color:#0D1117; border-color:#F59E0B;">Elegir Gold</div>
+          </div>
+
+          <!-- BLACK -->
+          <div class="plan-select-card" onclick="Auth.selectPlan('black')" id="plan-black"
+               style="border-color:rgba(100,116,139,0.3); background:linear-gradient(135deg,var(--bg-card),rgba(100,116,139,0.05));">
+            <div class="plan-select-badge" style="background:rgba(100,116,139,0.15); color:#94a3b8;">Consultar</div>
+            <div class="plan-select-name" style="color:#e2e8f0;">Black</div>
+            <div class="plan-select-price">
+              <span style="font-size:22px; font-weight:800; color:#94a3b8;">A convenir</span>
+            </div>
+            <div class="plan-select-desc">Para cadenas, franquicias y empresas grandes.</div>
+            <ul class="plan-select-features">
+              <li>Multi-sucursal</li><li>Usuarios ilimitados</li>
+              <li>API privada + automatizaciones</li><li>WhatsApp Business API</li>
+              <li>Dashboard tipo Power BI</li><li>Soporte dedicado</li>
+            </ul>
+            <div class="plan-select-btn" style="border-color:#64748B; color:#94a3b8;">Consultar por WhatsApp</div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px; text-align:center; max-width:500px;">
           <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">
-            Al registrarte ingresás en modo trial 7 días. Para activar un plan pago
-            contactate por WhatsApp con el administrador después del registro.
+            Al registrarte ingresás en modo trial 14 días. Para activar un plan pago
+            contactate por WhatsApp con el administrador.
           </p>
           <p style="margin-top:12px; font-size:13px; color:var(--text-secondary);">
             ¿Ya tenés cuenta?
@@ -133,25 +252,31 @@ const Auth = {
           </p>
         </div>
       </div>
+
       <style>
-        .plan-select-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; cursor:pointer; transition:all 0.2s; display:flex; flex-direction:column; gap:12px; position:relative; }
+        .plan-select-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; cursor:pointer; transition:all 0.2s; display:flex; flex-direction:column; gap:10px; position:relative; }
         .plan-select-card:hover { border-color:var(--border-green); transform:translateY(-3px); box-shadow:0 8px 32px rgba(0,0,0,0.3); }
-        .plan-select-card.featured { border-color:var(--border-green); box-shadow:0 0 0 1px rgba(126,211,33,0.1); }
+        .plan-select-card.featured { border-color:rgba(240,165,0,0.4); box-shadow:0 0 0 1px rgba(240,165,0,0.1); }
         .plan-select-card.selected { border-color:var(--green-primary) !important; box-shadow:0 0 0 2px var(--green-primary), 0 8px 32px rgba(126,211,33,0.2) !important; }
         .plan-select-badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; width:fit-content; }
-        .plan-select-name { font-size:16px; font-weight:800; color:var(--text-primary); }
+        .plan-select-name { font-size:18px; font-weight:800; color:var(--text-primary); }
         .plan-select-price { line-height:1; }
         .plan-select-desc { font-size:12px; color:var(--text-secondary); line-height:1.5; }
-        .plan-select-features { list-style:none; display:flex; flex-direction:column; gap:6px; margin:4px 0; }
+        .plan-select-features { list-style:none; display:flex; flex-direction:column; gap:5px; margin:4px 0; }
         .plan-select-features li { font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:6px; }
         .plan-select-features li::before { content:''; width:5px; height:5px; background:var(--green-primary); border-radius:50%; flex-shrink:0; }
         .plan-select-btn { margin-top:auto; padding:10px; border:1px solid var(--border); border-radius:var(--radius-md); text-align:center; font-size:13px; font-weight:700; transition:all 0.2s; }
-        @media (max-width:600px) { .plan-select-card:hover { transform:none; } .plan-select-card { padding:18px; } }
+        @media (max-width:600px) { .plan-select-card:hover { transform:none; } }
       </style>
     `;
   },
-
   selectPlan(planId) {
+    // Plan Black va directo a WhatsApp
+    if (planId === 'black') {
+      const waMsg = encodeURIComponent('Hola! Quiero conocer el Plan Black de PuntoStock para mi negocio.');
+      window.open(`https://wa.me/5493624897927?text=${waMsg}`, '_blank');
+      return;
+    }
     this.planSeleccionado = planId;
     document.querySelectorAll('.plan-select-card').forEach(c => c.classList.remove('selected'));
     document.getElementById(`plan-${planId}`)?.classList.add('selected');
@@ -332,10 +457,12 @@ const Auth = {
 
     const planSol = plan || 'trial';
     const planNombres = {
-      trial:       'Prueba gratuita (7 días)',
-      pro_mensual: 'Pro Mensual — $20.000/mes',
-      pro_anual:   'Pro Anual — $200.000 pago único',
-      multi:       `Multi-negocio — $15.000 c/u/mes`
+      trial:    'Trial (14 días gratis)',
+      medium:   'Medium — $15.000/mes',
+      high:     'High — $25.000/mes',
+      platinum: 'Platinum — $45.000/mes',
+      gold:     'Gold — $80.000/mes + setup $300.000',
+      black:    'Black — A convenir'
     };
     const planSolMulti = planSol === 'multi'
       ? `Multi-negocio (${cantBiz} negocios) — Total: $${(cantBiz * 15000 * 12).toLocaleString('es-AR')}/año`
