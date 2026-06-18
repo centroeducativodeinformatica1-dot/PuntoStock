@@ -235,9 +235,8 @@
 const SUPABASE_URL       = 'https://yvqcgjvxwdktyonbehil.supabase.co';
 const SUPABASE_ANON      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2cWNnanZ4d2RrdHlvbmJlaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjY5MDcsImV4cCI6MjA5NzMwMjkwN30.b0IF4E-CtI4wen2eQQEW2sG_-bKtK970MB-wW0B0pvI';
 const SUPABASE_SERVICE   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2cWNnanZ4d2RrdHlvbmJlaGlsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTcyNjkwNywiZXhwIjoyMDk3MzAyOTA3fQ.Wl71jj7O-i04NWv6YT2ZMU9DaaqZFs9Wl45vcUHVIe4';
-const { createClient } = supabase;
-const sb     = createClient(SUPABASE_URL, SUPABASE_ANON);       // para auth
-const sbAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE);   // para queries sin RLS
+const sb      = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const sbAdmin = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
 let todosNegocios = [];
 
