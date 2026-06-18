@@ -206,9 +206,11 @@
     <select class="filter-sel" id="filter-plan" onchange="filtrar()">
       <option value="">Todos los planes</option>
       <option value="trial">Trial</option>
-      <option value="pro_mensual">Pro Mensual</option>
-      <option value="pro_anual">Pro Anual</option>
-      <option value="multi">Multi-negocio</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="platinum">Platinum</option>
+      <option value="gold">Gold</option>
+      <option value="black">Black</option>
     </select>
     <select class="filter-sel" id="filter-estado" onchange="filtrar()">
       <option value="">Todos los estados</option>
@@ -357,10 +359,12 @@ function renderTabla(lista) {
   }
 
   const planBadge = {
-    trial:       '<span class="badge badge-orange">Trial</span>',
-    pro_mensual: '<span class="badge badge-green">Pro Mensual</span>',
-    pro_anual:   '<span class="badge badge-blue">Pro Anual</span>',
-    multi:       '<span class="badge badge-purple">Multi</span>',
+    trial:    '<span class="badge badge-muted">Trial</span>',
+    medium:   '<span class="badge badge-blue">Medium</span>',
+    high:     '<span class="badge badge-orange">High</span>',
+    platinum: '<span class="badge badge-purple">Platinum</span>',
+    gold:     '<span class="badge" style="background:rgba(245,158,11,.1);color:#F59E0B;border:1px solid rgba(245,158,11,.2);">Gold</span>',
+    black:    '<span class="badge badge-muted" style="color:#94a3b8;">Black</span>',
   };
 
   const tipoBadge = {
@@ -452,10 +456,12 @@ function modalPlan(id, nombre, planActual) {
       <div class="modal-field">
         <label>Nuevo plan</label>
         <select id="m-plan">
-          <option value="trial"       ${planActual==='trial'?'selected':''}>Trial (7 días)</option>
-          <option value="pro_mensual" ${planActual==='pro_mensual'?'selected':''}>Pro Mensual — $20.000/mes</option>
-          <option value="pro_anual"   ${planActual==='pro_anual'?'selected':''}>Pro Anual — $200.000</option>
-          <option value="multi"       ${planActual==='multi'?'selected':''}>Multi-negocio</option>
+          <option value="trial"    ${planActual==='trial'?'selected':''}>Trial (14 días)</option>
+          <option value="medium"   ${planActual==='medium'?'selected':''}>Medium — $15.000/mes</option>
+          <option value="high"     ${planActual==='high'?'selected':''}>High — $25.000/mes</option>
+          <option value="platinum" ${planActual==='platinum'?'selected':''}>Platinum — $45.000/mes</option>
+          <option value="gold"     ${planActual==='gold'?'selected':''}>Gold — $80.000/mes</option>
+          <option value="black"    ${planActual==='black'?'selected':''}>Black — A convenir</option>
         </select>
       </div>
       <div class="modal-footer">
