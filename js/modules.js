@@ -2419,7 +2419,7 @@ const Config = {
             Sesión iniciada como <strong>${PS.user?.email}</strong>
           </p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-secondary" onclick="Auth.forgotPassword()">
+            <button class="btn btn-secondary" onclick="Config.cambiarContrasena()">
               Cambiar contraseña
             </button>
             <button class="btn btn-danger" onclick="Config.logout()">
@@ -2466,6 +2466,40 @@ const Config = {
     } catch (e) {
       showToast('Error: ' + e.message, 'error');
     }
+  },
+
+  cambiarContrasena() {
+    openModal(`
+      <div class="modal-header">
+        <h3 class="modal-title">Cambiar contraseña</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Nueva contraseña</label>
+        <input type="password" id="new-pass" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="form-group">
+        <label>Confirmar contraseña</label>
+        <input type="password" id="new-pass2">
+      </div>
+      <div id="pass-err" style="display:none; color:var(--red); font-size:13px; margin-bottom:10px;"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Config.confirmarCambioPass()">Guardar</button>
+      </div>
+    `);
+  },
+
+  async confirmarCambioPass() {
+    const pass  = document.getElementById('new-pass').value;
+    const pass2 = document.getElementById('new-pass2').value;
+    const err   = document.getElementById('pass-err');
+    if (pass.length < 6) { err.style.display='block'; err.textContent='Mínimo 6 caracteres.'; return; }
+    if (pass !== pass2)  { err.style.display='block'; err.textContent='Las contraseñas no coinciden.'; return; }
+    const { error } = await sb.auth.updateUser({ password: pass });
+    if (error) { err.style.display='block'; err.textContent='Error: ' + error.message; return; }
+    closeModal();
+    showToast('Contraseña actualizada', 'success');
   },
 
   logout() {
